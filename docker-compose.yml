@@ -9,13 +9,13 @@ services:
       - .openai_template.env
     stdin_open: true # docker run -i
     tty: true        # docker run -t
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
   # api:
   #   build: .
   #   working_dir: /code
