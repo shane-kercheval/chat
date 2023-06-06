@@ -1,4 +1,45 @@
+# import streamlit as st
+
+# def main():
+#     state = st.session_state.setdefault('state', {'text_area_b': ''})
+#     # state = {'text_area_b': ''}
+#     print(state)
+
+#     text_area_a = st.text_area("Enter text for TextArea A")
+#     button_a = st.button("Button A")
+
+#     print(f"text_area_a - 1: `{text_area_a}`")
+#     if button_a:
+#         # Update contents of TextArea B with contents of TextArea A
+#         print("updating state")
+#         state['text_area_b'] = text_area_a
+#         print(f"state: `{state['text_area_b']}`")
+
+#     print(f"state - 2: `{state['text_area_b']}`")
+#     text_area_b = st.text_area("TextArea B", value=state['text_area_b'], key='text_area_b')
+#     print(f"text_area_b - 1: `{text_area_b}`")
+
+#     button_b = st.button("Button B")
+#     if button_b:
+#         print(f"text_area_b - 2: `{text_area_b}`")
+#         st.write("Contents of TextArea B:")
+#         st.write(text_area_b)
+#         state['text_area_b'] = text_area_b  # Update session state value
+
+#     print("-----end------")
+
+# if __name__ == "__main__":
+#     main()
+
+
 import streamlit as st
+#Known issues;
+#Once you modify the chat message, the prompt template message will know fill the text-box
+# Steps: fill out fields in prompt template; hit "Create Message"; Chat message is updated;
+# change one or more fields; hit "Create Message"; Chat message is still updated; Modify chat
+# message; now click "Create Message" from prompt template; Chat message will not update;
+# however, if you change one or more of field values in the prompt template and hit Create Message
+# then the chat message will update as expected.
 
     # setup streamlit page
 st.set_page_config(
@@ -147,8 +188,8 @@ def main():
         unsafe_allow_html=True,
     )
 
-    # Add custom CSS to hide the label
     st.markdown(
+        # Add custom CSS to hide the label of the prompt-template selection box in the sidebar
         """
         <style>
         section[data-testid="stSidebar"] .stSelectbox label {
@@ -158,7 +199,14 @@ def main():
         """,
         unsafe_allow_html=True,
     )
-    chat_gpt_message = None
+    st.markdown(
+        # Add custom CSS to hide the label of the chat message
+        '<style>section.main div.stTextArea label { display: none;}</style>',
+        unsafe_allow_html=True,
+    )
+
+    state = st.session_state.setdefault('state', {'chat_message': ''})
+    print(f"state: {state}")
 
     with st.sidebar:
         st.markdown('# Prompt Template')
@@ -209,6 +257,12 @@ def main():
             chat_gpt_message = prompt_example.strip()
             for key, value in prompt_field_values:
                 chat_gpt_message = chat_gpt_message.replace("{{" + key + "}}", value)
+            
+                # Update contents of TextArea B with contents of TextArea A
+            print("updating chat_message state")
+            state['chat_message'] = chat_gpt_message
+            print(f"state - 2: `{state}`")
+            
 
             # st.sidebar.write("Extracted Values:")
             # st.sidebar.write(extracted_values)
@@ -245,10 +299,8 @@ def main():
     st.header("Your own ChatGPT 🤖")
 
     print("A")
-    # user_input = st.text_input("Message: ", key="user_input")
-    print(f"`{str(chat_gpt_message)}`")
-    user_input = st.text_area("Send a message.", value=chat_gpt_message or '')
-    print(f"`{str(chat_gpt_message)}`")
+    user_input = st.text_area("Send a message.", key='chat_message', value=state['chat_message'], placeholder="Ask a question.")
+    print(f"User Input: `{str(user_input)}`")
     submit_button = st.button("Submit")
     display_horizontal_line()
     # handle user input
@@ -261,20 +313,13 @@ def main():
         with st.spinner("Thinking..."):
             print("CALLING CHATGPT")
             print(f"`{str(user_input)}`")
-            response = chat(st.session_state.messages)
+            print(st.session_state.messages[-1])
+            # TODO: pass all messages and/or figure out memory buffer strategy
+            response = chat([st.session_state.messages[0]] + [st.session_state.messages[-1]])
         st.session_state.messages.append(response)
+        state['chat_message'] = user_input  # Update session state value
+        print(f"updating state - 2: {state}")
 
-    # sidebar with user input
-    # with st.sidebar: 
-    #     user_input = st.text_input("Your message: ", key="user_input")
-
-        # # handle user input
-        # if user_input:
-        #     st.session_state.messages.append(HumanMessage(content=user_input))
-        #     with st.spinner("Thinking..."):
-        #         response = chat(st.session_state.messages)
-        #     st.session_state.messages.append(
-        #         AIMessage(content=response.content))
 
     print("C")
     # display message history
