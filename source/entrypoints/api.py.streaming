@@ -1,0 +1,113 @@
+"""This is an example of how to use async langchain with fastapi and return a streaming response.
+The latest version of Langchain has improved its compatibility with asynchronous FastAPI,
+making it easier to implement streaming functionality in your applications.
+
+https://gist.github.com/ninely/88485b2e265d852d3feb8bd115065b1a
+
+run via 
+
+```
+curl "http://127.0.0.1:8000/stream" -X POST -d '{"message": "hello!"}' -H 'Content-Type: application/json'
+```
+
+or 
+
+```
+import requests
+
+url = 'http://127.0.0.1:8000/stream'
+headers = {'Content-Type': 'application/json'}
+data = {'message': 'hello!'}
+
+response = requests.post(url, json=data, headers=headers)
+
+print(response.status_code)
+print(response.json())
+```
+"""
+import asyncio
+import os
+from typing import AsyncIterable, Awaitable
+
+import uvicorn
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+from langchain.callbacks import AsyncIteratorCallbackHandler
+from langchain.chat_models import ChatOpenAI
+from langchain.schema import HumanMessage
+from pydantic import BaseModel
+
+# Two ways to load env variables
+# 1.load env variables from .env file
+load_dotenv()
+
+os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_TOKEN"]
+
+app = FastAPI()
+
+
+async def send_message(message: str) -> AsyncIterable[str]:
+    callback = AsyncIteratorCallbackHandler()
+    model = ChatOpenAI(
+        streaming=True,
+        verbose=True,
+        callbacks=[callback],
+    )
+
+    async def wrap_done(fn: Awaitable, event: asyncio.Event):
+        """Wrap an awaitable with a event to signal when it's done or an exception is raised."""
+        try:
+            await fn
+        except Exception as e:
+            # TODO: handle exception
+            print(f"Caught exception: {e}")
+        finally:
+            # Signal the aiter to stop.
+            event.set()
+
+    # Begin a task that runs in the background.
+    task = asyncio.create_task(wrap_done(
+        model.agenerate(messages=[[HumanMessage(content=message)]]),
+        callback.done),
+    )
+
+    async for token in callback.aiter():
+        # Use server-sent-events to stream the response
+        yield token
+
+    await task
+
+
+class StreamRequest(BaseModel):
+    """Request body for streaming."""
+    message: str
+
+
+class StreamingResponseWithHeader(StreamingResponse):
+    def __init__(self, *args, **kwargs):
+        self.total_chars = 0
+        super().__init__(*args, **kwargs)
+
+    async def iter_encoded(self, *args, **kwargs):
+        async for chunk in super().iter_encoded(*args, **kwargs):
+            self.total_chars += len(chunk)
+            yield chunk
+
+    def headers(self, *args, **kwargs):
+        headers = super().headers(*args, **kwargs)
+        headers["X-Additional-Info"] = f"Total characters: {self.total_chars}"
+        return headers
+
+
+
+@app.post("/stream")
+def stream(body: StreamRequest):
+    return StreamingResponseWithHeader(
+        send_message(body.message),
+        media_type="text/event-stream",
+    )
+
+
+if __name__ == "__main__":
+    uvicorn.run(host="0.0.0.0", port=8000, app=app)

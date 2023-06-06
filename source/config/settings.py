@@ -7,7 +7,11 @@ To add a new setting:
 """
 import os
 import os.path
+from dotenv import load_dotenv
 from pydantic import BaseSettings
+
+load_dotenv()
+
 
 class Settings(BaseSettings):
     """Defines the settings for the app."""
@@ -25,12 +29,12 @@ class Settings(BaseSettings):
     LOGGING_FILE_NAME: str
 
     # tokens
-    # OPENAI_TOKEN: str = '**SECRET**'
+    OPENAI_API_KEY: str = None
 
 settings_path = '/code/settings.env'
 assert os.path.isfile(settings_path)
 
 settings = Settings(_env_file=settings_path, _env_file_encoding='utf-8')
 
-# settings.OPENAI_TOKEN = os.environ.get('OPENAI_TOKEN')
-# assert settings.OPENAI_TOKEN
+settings.OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+assert settings.OPENAI_API_KEY

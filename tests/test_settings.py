@@ -11,5 +11,4 @@ def test_settings() -> None:
     assert settings.DIR_DATA_PROCESSED
     assert settings.DIR_DATA_EXTERNAL
     assert settings.DIR_NOTEBOOKS
-    # assert settings.OPENAI_TOKEN
-    # assert settings.OPENAI_TOKEN != "**SECRET**"
+    assert settings.OPENAI_API_KEY

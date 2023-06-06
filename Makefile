@@ -2,7 +2,6 @@
 # DOCKER
 ####
 docker_build:
-	cp ~/.openai_template.env .
 	docker compose -f docker-compose.yml build
 
 docker_run: docker_build
@@ -12,7 +11,6 @@ docker_down:
 	docker compose down --remove-orphans
 
 docker_rebuild:
-	cp ~/.openai_template.env .
 	docker compose -f docker-compose.yml build --no-cache
 
 docker_bash:
@@ -50,6 +48,9 @@ data_transform:
 	python source/entrypoints/cli.py transform
 
 data: data_extract data_transform
+
+streamlit:
+	python -m streamlit run source/entrypoints/app.py
 
 explore:
 	jupyter nbconvert --execute --to html source/notebooks/datasets.ipynb
