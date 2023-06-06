@@ -141,8 +141,6 @@ It is code.
 def main():
     init()
 
-    chat = ChatOpenAI(temperature=0)
-
     css_messages = f"""
     <style>
         .sender {{
@@ -209,67 +207,80 @@ def main():
     print(f"state: {state}")
 
     with st.sidebar:
+        st.markdown('# Options')
+        openai_model = st.selectbox(label="Model", options=('GPT-3.5', 'GPT-4'))
+        temperature = st.slider(
+            label="Temperature",
+            min_value=0.0, max_value=1.0, value=0.0, step=0.1,
+        )
+        max_tokens = st.slider(
+            label="Temperature",
+            min_value=100, max_value=3000, value=1000, step=100,
+        )
+
         st.markdown('# Prompt Template')
 
-        option = st.selectbox(
+        template_option = st.selectbox(
             '<do not display>',
             (
+                '<Select>',
                 'Make text sound better.',
                 'Summarize text.',
                 'Code: Write doc strings',
             ),
         )
-        prompt_example = """
-        This is a prompt.
+        if template_option != '<Select>':
+            prompt_example = """
+            This is a prompt.
 
-        It has fields like this {{context}}
+            It has fields like this {{context}}
 
-        And this:
+            And this:
 
-        ```
-        {{more_context}}
-        ```
-        """
+            ```
+            {{more_context}}
+            ```
+            """
 
-        # Regular expression pattern to match values within double brackets
-        pattern = r"\{\{(.*?)\}\}"
+            # Regular expression pattern to match values within double brackets
+            pattern = r"\{\{(.*?)\}\}"
 
-        import re
-        # Find all matches of the pattern in the text
-        matches = re.findall(pattern, prompt_example, re.DOTALL)
+            import re
+            # Find all matches of the pattern in the text
+            matches = re.findall(pattern, prompt_example, re.DOTALL)
 
-        # Create a dictionary to store the extracted values
-        prompt_field_values = []
+            # Create a dictionary to store the extracted values
+            prompt_field_values = []
 
-        # Create the sidebar text areas
-        with st.form(key="my_form"):
-            st.markdown("### Fields")
-            st.markdown("Fill in the information for the following fields referred to in the prompt template, shown below.")
-            for match in matches:
-                prompt_field_values.append((match, st.text_area(match, height=100, key=match)))
-                # prompt_field_values.append((match, st.sidebar.text_area(match, height=100)))
-            create_message_submit = st.form_submit_button(label='Create message')
+            # Create the sidebar text areas
+            with st.form(key="my_form"):
+                st.markdown("### Fields")
+                st.markdown("Fill in the information for the following fields referred to in the prompt template, shown below.")
+                for match in matches:
+                    prompt_field_values.append((match, st.text_area(match, height=100, key=match)))
+                    # prompt_field_values.append((match, st.sidebar.text_area(match, height=100)))
+                create_message_submit = st.form_submit_button(label='Create message')
 
-        # Create the button to extract the text
-        if create_message_submit:
-            # extracted_values = {key: values_dict[key] for key in values_dict if values_dict[key]}
+            # Create the button to extract the text
+            if create_message_submit:
+                # extracted_values = {key: values_dict[key] for key in values_dict if values_dict[key]}
 
-            chat_gpt_message = prompt_example.strip()
-            for key, value in prompt_field_values:
-                chat_gpt_message = chat_gpt_message.replace("{{" + key + "}}", value)
-            
-                # Update contents of TextArea B with contents of TextArea A
-            print("updating chat_message state")
-            state['chat_message'] = chat_gpt_message
-            print(f"state - 2: `{state}`")
-            
+                chat_gpt_message = prompt_example.strip()
+                for key, value in prompt_field_values:
+                    chat_gpt_message = chat_gpt_message.replace("{{" + key + "}}", value)
+                
+                    # Update contents of TextArea B with contents of TextArea A
+                print("updating chat_message state")
+                state['chat_message'] = chat_gpt_message
+                print(f"state - 2: `{state}`")
+                
 
-            # st.sidebar.write("Extracted Values:")
-            # st.sidebar.write(extracted_values)
+                # st.sidebar.write("Extracted Values:")
+                # st.sidebar.write(extracted_values)
 
-        st.markdown('### Template:')
-        st.sidebar.text(prompt_example)
-        # st.sidebar.markdown(f'<div class="sidebar-text">{prompt_example}</div>', unsafe_allow_html=True)
+            st.markdown('### Template:')
+            st.sidebar.text(prompt_example)
+            # st.sidebar.markdown(f'<div class="sidebar-text">{prompt_example}</div>', unsafe_allow_html=True)
 
 
     # initialize message history
@@ -296,9 +307,10 @@ def main():
             AIMessage(content=message, additional_kwargs={}, example=False),  # noqa
         ]
 
-    st.header("Your own ChatGPT 🤖")
+    # st.header("Your own ChatGPT 🤖")
 
     print("A")
+
     user_input = st.text_area("Send a message.", key='chat_message', value=state['chat_message'], placeholder="Ask a question.")
     print(f"User Input: `{str(user_input)}`")
     submit_button = st.button("Submit")
@@ -315,6 +327,14 @@ def main():
             print(f"`{str(user_input)}`")
             print(st.session_state.messages[-1])
             # TODO: pass all messages and/or figure out memory buffer strategy
+            if openai_model == 'GPT-3.5':
+                model_name = 'gpt-3.5-turbo'
+            elif openai_model == 'GPT-3.5':
+                model_name = 'gpt-4'
+            else:
+                raise ValueError(openai_model)
+
+            chat = ChatOpenAI(model=model_name, temperature=temperature, max_tokens=max_tokens)
             response = chat([st.session_state.messages[0]] + [st.session_state.messages[-1]])
         st.session_state.messages.append(response)
         state['chat_message'] = user_input  # Update session state value
