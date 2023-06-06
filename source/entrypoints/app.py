@@ -43,7 +43,7 @@ import streamlit as st
 
     # setup streamlit page
 st.set_page_config(
-        page_title="Your own ChatGPT",
+        page_title="ChatGPT",
         page_icon="🤖",
         layout='wide',
     )
@@ -141,67 +141,62 @@ It is code.
 def main():
     init()
 
-    css_messages = f"""
+    css = ''
+    # css += '<style> .main { padding: 20px; }</style>'
+    # css for chat message
+    css += """
     <style>
-        .sender {{
+    section.main .block-container {
+        padding-top: 30px;
+        padding-bottom: 20px;
+    }
+    </style>
+    <style>
+        .sender {
             background-color: #d8f0ff;
             padding: 20px;
             border-radius: 5px;
-            margin-bottom: 10px;
-        }}
-        .receiver {{
+            margin-bottom: 30px;
+        }
+        .receiver {
             background-color: #F0F0F0;
             padding: 20px;
             border-radius: 5px;
             margin-bottom: 10px;
-        }}
-        .emoji {{
+        }
+        .emoji {
             font-size: 24px;
             margin-bottom: 5px;
-        }}
-        .stCodeBlock {{
+        }
+        .stCodeBlock {
             margin: 20px 0;
-        }}
+        }
     </style>
     """
-    st.markdown(css_messages, unsafe_allow_html=True)
-
-    st.markdown(
-        '<style>section[data-testid="stSidebar"]{width: 500px !important;}</style>',
-        unsafe_allow_html=True,
-    )
-
-    # Apply custom CSS style to the sidebar
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stText"] {
-            background-color: white;
-            padding: 10px;
-            white-space: pre-wrap;
-            width: 100%;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        # Add custom CSS to hide the label of the prompt-template selection box in the sidebar
-        """
-        <style>
-        section[data-testid="stSidebar"] .stSelectbox label {
-            display: none;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        # Add custom CSS to hide the label of the chat message
-        '<style>section.main div.stTextArea label { display: none;}</style>',
-        unsafe_allow_html=True,
-    )
+    # css for sidebar width
+    css += '<style>section[data-testid="stSidebar"]{width: 400px !important;}</style>'
+    # custom style for text box e.g. prompt-template in sidebar
+    css += """
+    <style>
+    div[data-testid="stText"] {
+        background-color: white;
+        padding: 10px;
+        white-space: pre-wrap;
+        width: 100%;
+    }
+    </style>
+    """
+     # Add custom CSS to hide the label of the prompt-template selection box in the sidebar
+    css += """
+    <style>
+    section[data-testid="stSidebar"] .stSelectbox label {
+        display: none;
+    }
+    </style>
+    """
+    # Add custom CSS to hide the label of the chat message
+    css += '<style>section.main div.stTextArea label { display: none;}</style>'
+    st.markdown(css, unsafe_allow_html=True)
 
     state = st.session_state.setdefault('state', {'chat_message': ''})
     print(f"state: {state}")
@@ -209,14 +204,18 @@ def main():
     with st.sidebar:
         st.markdown('# Options')
         openai_model = st.selectbox(label="Model", options=('GPT-3.5', 'GPT-4'))
-        temperature = st.slider(
-            label="Temperature",
-            min_value=0.0, max_value=1.0, value=0.0, step=0.1,
-        )
-        max_tokens = st.slider(
-            label="Temperature",
-            min_value=100, max_value=3000, value=1000, step=100,
-        )
+
+        with st.expander("Additional Options"):
+            temperature = st.slider(
+                label="Temperature",
+                min_value=0.0, max_value=2.0, value=0.0, step=0.1,
+                help="What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.",  # noqa
+            )
+            max_tokens = st.slider(
+                label="Max Tokens",
+                min_value=100, max_value=3000, value=1000, step=100,
+                help="The maximum number of tokens to generate in the completion."  # noqa
+            )
 
         st.markdown('# Prompt Template')
 
@@ -307,13 +306,36 @@ def main():
             AIMessage(content=message, additional_kwargs={}, example=False),  # noqa
         ]
 
-    # st.header("Your own ChatGPT 🤖")
 
     print("A")
 
-    user_input = st.text_area("Send a message.", key='chat_message', value=state['chat_message'], placeholder="Ask a question.")
-    print(f"User Input: `{str(user_input)}`")
-    submit_button = st.button("Submit")
+    col_1, col_2 = st.columns([5, 1])
+    with col_1:
+        user_input = st.text_area(
+            "Send a message.",
+            key='chat_message',
+            value=state['chat_message'],
+            placeholder="Ask a question.",
+            height=150,
+        )
+        print(f"User Input: `{str(user_input)}`")
+        submit_button = st.button("Submit")
+    with col_2:
+        cost_string = f"""
+        <b>Total Cost</b>: <code>$1.00</code><br>
+        """
+        token_string = f"""
+        Total Tokens: <code>1,000</code><br>
+        Prompt Tokens: <code>1,000</code><br>
+        Completion Tokens: <code>1,000</code><br>
+        """
+        cost_html = f"""
+        <p style="font-size: 13px; text-align: right">{cost_string}</p>
+        <p style="font-size: 12px; text-align: right">{token_string}</p>
+        """
+        st.markdown(cost_html, unsafe_allow_html=True)
+
+    
     display_horizontal_line()
     # handle user input
     if submit_button and user_input:
@@ -329,7 +351,7 @@ def main():
             # TODO: pass all messages and/or figure out memory buffer strategy
             if openai_model == 'GPT-3.5':
                 model_name = 'gpt-3.5-turbo'
-            elif openai_model == 'GPT-3.5':
+            elif openai_model == 'GPT-4':
                 model_name = 'gpt-4'
             else:
                 raise ValueError(openai_model)
@@ -344,8 +366,53 @@ def main():
     print("C")
     # display message history
     messages = st.session_state.get('messages', [])
-    for i, msg in reversed(list(enumerate(messages[1:]))):
-        display_chat_message(msg.content, isinstance(msg, HumanMessage))
+    messages = list(reversed(messages))
+    print(messages)
+    print(f"len: {len(messages)}")
+    for i in range(0, len(messages) - 1, 2):
+        print(f"i: {i}")
+
+        human_message = messages[i + 1]
+        print(f"human: {human_message}")
+        assert isinstance(human_message, HumanMessage)
+        ai_message = messages[i]
+        assert isinstance(ai_message, AIMessage)
+        col_1, col_2 = st.columns([5, 1])
+        with col_1:
+            display_chat_message(ai_message.content, is_sender=False)
+            display_chat_message(human_message.content, is_sender=True)
+        with col_2:
+            cost_string = f"""
+            <b>Message Cost</b>: <code>$1.00</code><br>
+            """
+            token_string = f"""
+            Message Tokens: <code>1,000</code><br>
+            Prompt Tokens: <code>1,000</code><br>
+            Completion Tokens: <code>1,000</code><br>
+            """
+            cost_html = f"""
+            <p style="font-size: 13px; text-align: right">{cost_string}</p>
+            <p style="font-size: 12px; text-align: right">{token_string}</p>
+            """
+            st.markdown(cost_html, unsafe_allow_html=True)
+            # st.markdown("<style>p { font-size: 11px; padding: 1px;}</style>", unsafe_allow_html=True)
+            # st.markdown(cost_string)
+
+            # st.markdown(cost_string)
+            # st.markdown("Totat Tokens: `1,000`")
+            # st.markdown("Prompt Tokens: 1,000")
+            # st.markdown("Completion Tokens: 1,000")
+            # st.markdown("Total Cost: $1.00")
+
+    # for i, msg in reversed(list(enumerate(messages[1:]))):
+        # col_1, col_2 = st.columns([10, 1])
+        # with col_1:
+        #     display_chat_message(msg.content, isinstance(msg, HumanMessage))
+        # with col_2:
+        #     st.markdown("Totat Tokens: 1,000")
+        #     st.markdown("Prompt Tokens: 1,000")
+        #     st.markdown("Completion Tokens: 1,000")
+        #     st.markdown("Total Cost: $1.00")
         # st.markdown(msg.content)
         # st.markdown('---')
         # if i % 2 == 0:
