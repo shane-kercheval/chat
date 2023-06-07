@@ -105,7 +105,7 @@ def display_chat_message(message: str, is_human: bool) -> None:
 def create_prompt_template_options() -> None:
     """Returns a drop-down widget with prompt templates."""
     return st.selectbox(
-        '<do not display>',
+        '<label should be hidden>',
         (
             '<Select>',
             'Make text sound better.',
@@ -151,6 +151,34 @@ def get_fields_from_template(prompt_template: str) -> list[str]:
     # Find all matches of the pattern in the text
     return re.findall(pattern, prompt_template, re.DOTALL)
 
+
+def display_totals(
+        cost: float,
+        total_tokens: int,
+        prompt_tokens: int,
+        completion_tokens: int) -> None:
+    """
+    Display the totals.
+
+    Args:
+        cost: cost of all tokens
+        total_tokens: number of total tokens 
+        prompt_tokens: number of prompt tokens 
+        completion_tokens: number of completion tokens 
+    """
+    cost_string = f"""
+    <b>Total Cost</b>: <code>${cost:.2f}</code><br>
+    """
+    token_string = f"""
+    Total Tokens: <code>{total_tokens:,}</code><br>
+    Prompt Tokens: <code>{prompt_tokens:,}</code><br>
+    Completion Tokens: <code>{completion_tokens:,}</code><br>
+    """
+    cost_html = f"""
+    <p style="font-size: 13px; text-align: right">{cost_string}</p>
+    <p style="font-size: 12px; text-align: right">{token_string}</p>
+    """
+    st.markdown(cost_html, unsafe_allow_html=True)
 
 def _return_mock_conversation() -> list[BaseMessage]:
     """Returns a mock conversation with ChatGPT."""

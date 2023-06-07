@@ -91,50 +91,33 @@ def main() -> None:
 
             st.markdown('### Template:')
             st.sidebar.text(prompt_template)
-            # st.sidebar.markdown(f'<div class="sidebar-text">{prompt_example}</div>', unsafe_allow_html=True)
 
-
-    print("A")
-
-    col_1, col_2 = st.columns([5, 1])
-    with col_1:
+    # display the chat text_area and total cost side-by-side
+    col_craft_message, col_conversation_totals = st.columns([5, 1])
+    with col_craft_message:
         user_input = st.text_area(
-            "Send a message.",
+            "<label should be hidden>",
             key='chat_message',
             value=message_state['chat_message'],
             placeholder="Ask a question.",
             height=150,
         )
-        print(f"User Input: `{str(user_input)}`")
+        # this submit_button when send the message to ChatGPT
         submit_button = st.button("Submit")
-    with col_2:
-        cost_string = f"""
-        <b>Total Cost</b>: <code>$1.00</code><br>
-        """
-        token_string = f"""
-        Total Tokens: <code>1,000</code><br>
-        Prompt Tokens: <code>1,000</code><br>
-        Completion Tokens: <code>1,000</code><br>
-        """
-        cost_html = f"""
-        <p style="font-size: 13px; text-align: right">{cost_string}</p>
-        <p style="font-size: 12px; text-align: right">{token_string}</p>
-        """
-        st.markdown(cost_html, unsafe_allow_html=True)
+    with col_conversation_totals:
+        sh.display_totals(
+            cost=5.2222,
+            total_tokens=3000,
+            prompt_tokens=2750,
+            completion_tokens=25,
+        )
 
     sh.display_horizontal_line()
-    # handle user input
+
     if submit_button and user_input:
-        print("B")
-        print(f"`{str(user_input)}`")
         human_message = HumanMessage(content=user_input)
         st.session_state.messages.append(human_message)
-        # message(human_message.content, is_user=True, key=str(i) + '_user')
         with st.spinner("Thinking..."):
-            print("CALLING CHATGPT")
-            print(f"`{str(user_input)}`")
-            print(st.session_state.messages[-1])
-            # TODO: pass all messages and/or figure out memory buffer strategy
             if openai_model == 'GPT-3.5':
                 model_name = 'gpt-3.5-turbo'
             elif openai_model == 'GPT-4':
@@ -142,72 +125,32 @@ def main() -> None:
             else:
                 raise ValueError(openai_model)
 
+            print(f"Calling ChatGPT: model={model_name}; temp={temperature}; max_tokens={max_tokens}")  # noqa
             chat = ChatOpenAI(model=model_name, temperature=temperature, max_tokens=max_tokens)
+            # TODO: pass all messages and/or figure out memory buffer strategy
             response = chat([st.session_state.messages[0]] + [st.session_state.messages[-1]])
         st.session_state.messages.append(response)
         message_state['chat_message'] = user_input  # Update session state value
-        print(f"updating state - 2: {message_state}")
 
-
-    print("C")
     # display message history
     messages = st.session_state.get('messages', [])
     messages = list(reversed(messages))
-    print(messages)
-    print(f"len: {len(messages)}")
     for i in range(0, len(messages) - 1, 2):
-        print(f"i: {i}")
-
         human_message = messages[i + 1]
-        print(f"human: {human_message}")
         assert isinstance(human_message, HumanMessage)
         ai_message = messages[i]
         assert isinstance(ai_message, AIMessage)
-        col_1, col_2 = st.columns([5, 1])
-        with col_1:
+        col_messages, col_totals = st.columns([5, 1])
+        with col_messages:
             sh.display_chat_message(ai_message.content, is_human=False)
             sh.display_chat_message(human_message.content, is_human=True)
-        with col_2:
-            cost_string = f"""
-            <b>Message Cost</b>: <code>$1.00</code><br>
-            """
-            token_string = f"""
-            Message Tokens: <code>1,000</code><br>
-            Prompt Tokens: <code>1,000</code><br>
-            Completion Tokens: <code>1,000</code><br>
-            """
-            cost_html = f"""
-            <p style="font-size: 13px; text-align: right">{cost_string}</p>
-            <p style="font-size: 12px; text-align: right">{token_string}</p>
-            """
-            st.markdown(cost_html, unsafe_allow_html=True)
-            # st.markdown("<style>p { font-size: 11px; padding: 1px;}</style>", unsafe_allow_html=True)
-            # st.markdown(cost_string)
-
-            # st.markdown(cost_string)
-            # st.markdown("Totat Tokens: `1,000`")
-            # st.markdown("Prompt Tokens: 1,000")
-            # st.markdown("Completion Tokens: 1,000")
-            # st.markdown("Total Cost: $1.00")
-
-    # for i, msg in reversed(list(enumerate(messages[1:]))):
-        # col_1, col_2 = st.columns([10, 1])
-        # with col_1:
-        #     display_chat_message(msg.content, isinstance(msg, HumanMessage))
-        # with col_2:
-        #     st.markdown("Totat Tokens: 1,000")
-        #     st.markdown("Prompt Tokens: 1,000")
-        #     st.markdown("Completion Tokens: 1,000")
-        #     st.markdown("Total Cost: $1.00")
-        # st.markdown(msg.content)
-        # st.markdown('---')
-        # if i % 2 == 0:
-        #     message(msg.content, is_user=True, key=str(i) + '_user')
-        # else:
-        #     message(msg.content, is_user=False, key=str(i) + '_ai')
-        # message(response.content, is_user=False, key=str(i) + '_ai')
-        
-        # st.experimental_rerun()
+        with col_totals:
+            sh.display_totals(
+                cost=1.25,
+                total_tokens=1000,
+                prompt_tokens=750,
+                completion_tokens=25,
+            )
 
     print("--------------END--------------")
 
