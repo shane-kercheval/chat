@@ -15,9 +15,6 @@ def get_tiktok_encoding(model: str) -> tiktoken.Encoding:
     """Helper function that returns an encoding method for a given model."""
     return tiktoken.encoding_for_model(model)
 
-# class ChatMetaData(Base):
-
-
 
 class MessageMetaData(BaseModel):
     """
@@ -37,9 +34,9 @@ class MessageMetaData(BaseModel):
     cost: float | None = None
 
     # This method will be called after the class is created
-    # and will calculate the value of z if it wasn't supplied
+    # and will calculate the value of prompt_tokens if it wasn't supplied
     # by the user
-    def __init__(self, **data):
+    def __init__(self, **data):  # noqa: ANN003
         super().__init__(**data)
         encoding = get_tiktok_encoding(model=self.model_name)
 
@@ -48,6 +45,20 @@ class MessageMetaData(BaseModel):
             self.completion_tokens = len(encoding.encode(self.ai_response.content))
             self.total_tokens = self.prompt_tokens + self.completion_tokens
             self.cost = MODEL_COST_PER_1K_TOKENS[self.model_name] * (self.total_tokens / 1_000)
+
+
+class ChatConversation(BaseModel):
+    """
+    We have to differentiate between the entire message chain/history of the conversation
+    (including the SystemMessage) and the history used for any given chat message (which may be a
+    subset of that history) and the corresponding metadata of the message (# of tokens, cost)
+    In other words, we can't regenerate the cost based on the entire list of messages
+    because that doesn't show the entire prompt/message that was sent to ChatGPT (i.e. it only
+    shows our question, not the context).
+    """
+
+    chat_history: list[MessageMetaData]  # i.e. question/response/costs/tokens
+    message_chain: list[BaseMessage]  # i.e. each SystemMessage/HumanMessage/AIMessage in history
 
 
 def apply_css() -> None:
@@ -238,13 +249,7 @@ def display_totals(
         st.markdown(cost_html, unsafe_allow_html=True)
 
 
-def _create_mock_message_chain(num_conversations: int = 10) -> list[BaseMessage]:
-    from faker import Faker
-    import random
-
-    random.seed(123)
-    fake = Faker()
-    Faker(123)
+def _create_mock_message_chain(num_chats: int = 10) -> list[BaseMessage]:
     """Returns a mock conversation with ChatGPT."""
     message = """
 This is some python:
@@ -257,9 +262,9 @@ def python():
 It is code.
     """
     messages = [SystemMessage(content="You are a helpful assistant.")]
-    for _ in range(num_conversations):
-        fake_human = ' '.join([fake.word() for _ in range(random.randint(5, 10))])
-        fake_ai = ' '.join([fake.word() for _ in range(random.randint(5, 10))])
+    for _ in range(num_chats):
+        fake_human = _create_mock_message()
+        fake_ai = _create_mock_message()
         messages += [
             HumanMessage(content="Question: " + fake_human),
             AIMessage(content="Answer: " + fake_ai),
@@ -269,6 +274,14 @@ It is code.
         AIMessage(content="Answer: " + message),
     ]
     return messages
+
+
+def _create_mock_message() -> str:
+    """TBD."""
+    import random
+    from faker import Faker
+    fake = Faker()
+    return ' '.join([fake.word() for _ in range(random.randint(5, 10))])
 
 
 def _create_mock_chat_history(message_chain: list[BaseMessage]) -> list[MessageMetaData]:
@@ -287,7 +300,11 @@ def _create_mock_chat_history(message_chain: list[BaseMessage]) -> list[MessageM
         ))
     return chat_history
 
-# def _create_mock_history(arg: type) -> return_type:
+def _create_mock_conversation(num_chats: int = 10) -> ChatConversation:
+    message_chain = _create_mock_message_chain(num_chats=num_chats)
+    history = _create_mock_chat_history(message_chain=message_chain)
+    return ChatConversation(message_chain=message_chain, chat_history=history)
+
     
 
 # import streamlit as st

@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 import streamlit as st
 from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage
+from langchain.schema import HumanMessage, AIMessage
 import source.library.streamlit_helpers as sh
 
 # TODO: document
@@ -49,12 +49,9 @@ def main() -> None:
     # In other words, we can't regenerate the cost based on the entire list of messages
     # because that doesn't show the entire prompt/message that was sent to ChatGPT (i.e. it only
     # shows our question, not the context)
-    if 'message_chain' not in st.session_state:
+    if 'chat_conversation' not in st.session_state:
         # list of langhain Messages
-        st.session_state.message_chain = sh._create_mock_message_chain()
-    if 'chat_history' not in st.session_state:
-        # list of ChatMetaData
-        st.session_state.chat_history = sh._create_mock_chat_history(message_chain=st.session_state.message_chain)  # noqa
+        st.session_state.chat_conversation = sh._create_mock_conversation(num_chats=2)
 
     with st.sidebar:
         st.markdown('# Options')
@@ -119,15 +116,16 @@ def main() -> None:
         # this submit_button when send the message to ChatGPT
         submit_button = st.button("Submit")
     with col_conversation_totals:
-        chat_history = st.session_state.get('chat_history', [])
         result_placeholder = st.empty()
 
 
     sh.display_horizontal_line()
 
+    chat_conversation = st.session_state.get('chat_conversation', [])
+
     if submit_button and user_input:
         human_message = HumanMessage(content=user_input)
-        st.session_state.message_chain.append(human_message)
+        chat_conversation.message_chain.append(human_message)
         with st.spinner("Thinking..."):
             if openai_model == 'GPT-3.5':
                 model_name = 'gpt-3.5-turbo'
@@ -140,9 +138,10 @@ def main() -> None:
 
             chat = ChatOpenAI(model=model_name, temperature=temperature, max_tokens=max_tokens)
             # TODO: pass all messages and/or figure out memory buffer strategy
-            history = [st.session_state.message_chain[0]] + [st.session_state.message_chain[-1]]
+            history = [chat_conversation.message_chain[0]] + [chat_conversation.message_chain[-1]]
             print("history: " + str(history))
-            response = chat(history)
+            # response = chat(history)
+            response = AIMessage(content = sh._create_mock_message())
 
         chat_data = sh.MessageMetaData(
             model_name=model_name,
@@ -150,13 +149,12 @@ def main() -> None:
             full_question=' '.join([x.content for x in history]),
             ai_response=response,
         )
-        st.session_state.chat_history.append(chat_data)
-        st.session_state.message_chain.append(response)
+        chat_conversation.chat_history.append(chat_data)
+        chat_conversation.message_chain.append(response)
         message_state['chat_message'] = user_input  # Update session state value
 
     # display message history
-    chat_history = st.session_state.get('chat_history', [])
-    chat_history = list(reversed(chat_history))
+    chat_history = list(reversed(chat_conversation.chat_history))
     for chat in chat_history:
         col_messages, col_totals = st.columns([5, 1])
         with col_messages:
