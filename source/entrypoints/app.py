@@ -19,10 +19,10 @@ import source.library.streamlit_helpers as sh
 # then the chat message will update as expected.
 
 st.set_page_config(
-        page_title="ChatGPT",
-        page_icon="🤖",
-        layout='wide',
-    )
+    page_title="ChatGPT",
+    page_icon="🤖",
+    layout='wide',
+)
 
 
 def initialize() -> None:
@@ -43,8 +43,18 @@ def main() -> None:
     sh.apply_css()
     message_state = st.session_state.setdefault('state', {'chat_message': ''})
     # initialize message history
-    if "messages" not in st.session_state:
-        st.session_state.messages = sh._return_mock_conversation()
+    # We have to differentiate between the entire message chain/history of the conversation
+    # (including the SystemMessage) and the history used for any given chat message (which may be a
+    # subset of that history) and the corresponding metadata of the message (# of tokens, cost)
+    # In other words, we can't regenerate the cost based on the entire list of messages
+    # because that doesn't show the entire prompt/message that was sent to ChatGPT (i.e. it only
+    # shows our question, not the context)
+    if 'message_chain' not in st.session_state:
+        # list of langhain Messages
+        st.session_state.message_chain = sh._create_mock_message_chain()
+    if 'chat_history' not in st.session_state:
+        # list of ChatMetaData
+        st.session_state.chat_history = sh._create_mock_chat_history(message_chain=st.session_state.message_chain)  # noqa
 
     with st.sidebar:
         st.markdown('# Options')
@@ -62,7 +72,7 @@ def main() -> None:
                 help="The maximum number of tokens to generate in the completion."  # noqa
             )
 
-        st.markdown('# Prompt Template')
+        st.markdown("# Prompt Template")
         template_name = sh.create_prompt_template_options()
         if template_name != '<Select>':
             prompt_template = sh.get_prompt_template(template_name=template_name)
@@ -92,6 +102,9 @@ def main() -> None:
             st.markdown('### Template:')
             st.sidebar.text(prompt_template)
 
+        st.markdown("# History")
+
+
     # display the chat text_area and total cost side-by-side
     col_craft_message, col_conversation_totals = st.columns([5, 1])
     with col_craft_message:
@@ -105,18 +118,14 @@ def main() -> None:
         # this submit_button when send the message to ChatGPT
         submit_button = st.button("Submit")
     with col_conversation_totals:
-        sh.display_totals(
-            cost=5.2222,
-            total_tokens=3000,
-            prompt_tokens=2750,
-            completion_tokens=25,
-        )
+        chat_history = st.session_state.get('chat_history', [])
+        result_placeholder = st.empty()
+
 
     sh.display_horizontal_line()
 
     if submit_button and user_input:
         human_message = HumanMessage(content=user_input)
-        st.session_state.messages.append(human_message)
         with st.spinner("Thinking..."):
             if openai_model == 'GPT-3.5':
                 model_name = 'gpt-3.5-turbo'
@@ -126,31 +135,47 @@ def main() -> None:
                 raise ValueError(openai_model)
 
             print(f"Calling ChatGPT: model={model_name}; temp={temperature}; max_tokens={max_tokens}")  # noqa
+
             chat = ChatOpenAI(model=model_name, temperature=temperature, max_tokens=max_tokens)
             # TODO: pass all messages and/or figure out memory buffer strategy
-            response = chat([st.session_state.messages[0]] + [st.session_state.messages[-1]])
-        st.session_state.messages.append(response)
+            history = [st.session_state.message_chain[0]] + [st.session_state.message_chain[-1]]
+            response = chat(history)
+
+        chat_data = sh.ChatMetaData(
+            model_name=model_name,
+            human_question=human_message,
+            full_question=' '.join([x.content for x in history]),
+            ai_response=response,
+        )
+        st.session_state.chat_history.append(chat_data)
+        st.session_state.message_chain.append(human_message)
+        st.session_state.message_chain.append(response)
         message_state['chat_message'] = user_input  # Update session state value
 
     # display message history
-    messages = st.session_state.get('messages', [])
-    messages = list(reversed(messages))
-    for i in range(0, len(messages) - 1, 2):
-        human_message = messages[i + 1]
-        assert isinstance(human_message, HumanMessage)
-        ai_message = messages[i]
-        assert isinstance(ai_message, AIMessage)
+    chat_history = st.session_state.get('chat_history', [])
+    chat_history = list(reversed(chat_history))
+    for chat in chat_history:
         col_messages, col_totals = st.columns([5, 1])
         with col_messages:
-            sh.display_chat_message(ai_message.content, is_human=False)
-            sh.display_chat_message(human_message.content, is_human=True)
+            sh.display_chat_message(chat.ai_response.content, is_human=False)
+            sh.display_chat_message(chat.human_question.content, is_human=True)
         with col_totals:
             sh.display_totals(
-                cost=1.25,
-                total_tokens=1000,
-                prompt_tokens=750,
-                completion_tokens=25,
+                cost=chat.cost,
+                total_tokens=chat.total_tokens,
+                prompt_tokens=chat.prompt_tokens,
+                completion_tokens=chat.completion_tokens,
             )
+
+    sh.display_totals(
+        cost=sum(x.cost for x in chat_history),
+        total_tokens=sum(x.total_tokens for x in chat_history),
+        prompt_tokens=sum(x.prompt_tokens for x in chat_history),
+        completion_tokens=sum(x.completion_tokens for x in chat_history),
+        round_cost_digits=4,
+        placeholder=result_placeholder,
+    )
 
     print("--------------END--------------")
 

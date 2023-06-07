@@ -1,7 +1,61 @@
 """Helper functions for streamlit app."""
+from functools import cache
 import re
 import streamlit as st
 from langchain.schema import BaseMessage, SystemMessage, HumanMessage, AIMessage
+from langchain.callbacks.openai_info import MODEL_COST_PER_1K_TOKENS
+
+import tiktoken
+
+
+
+@cache
+def get_tiktok_encoding(model: str) -> tiktoken.Encoding:
+    """Helper function that returns an encoding method for a given model."""
+    return tiktoken.encoding_for_model(model)
+
+
+class ChatMetaData():
+    """TBD."""
+
+    def __init__(
+            self,
+            model_name: str,
+            human_question: HumanMessage,
+            full_question: str,
+            ai_response: AIMessage,
+            prompt_tokens: int | None = None,
+            completion_tokens: int | None = None,
+            total_tokens: int | None = None,
+            cost: float | None = None,
+        ) -> None:
+        """
+        full_question is the question and any history or prompt template that langchain sent.
+        If tokens/cost is not provided, they will be calculated.
+        prompt_history is not necessarily the same thing as all history. It is the history used in
+        the prompt, but not all history is necessarily used.
+        """
+        assert model_name in {'gpt-3.5-turbo', 'gpt-4'}
+
+        encoding = get_tiktok_encoding(model=model_name)
+        self.model_name = model_name
+        self.human_question = human_question
+        self.full_question = full_question
+        self.ai_response = ai_response
+        if not prompt_tokens:
+            prompt_tokens = len(encoding.encode(full_question))
+        self.prompt_tokens = prompt_tokens
+        if not completion_tokens:
+            completion_tokens = len(encoding.encode(ai_response.content))
+        self.completion_tokens = completion_tokens
+        if not total_tokens:
+            total_tokens = prompt_tokens + completion_tokens
+        self.total_tokens = total_tokens
+        if not cost:
+            cost = MODEL_COST_PER_1K_TOKENS[model_name] * (total_tokens / 1_000)
+        self.cost = cost
+
+
 
 def apply_css() -> None:
     """Applies css to the streamlit app."""
@@ -156,18 +210,22 @@ def display_totals(
         cost: float,
         total_tokens: int,
         prompt_tokens: int,
-        completion_tokens: int) -> None:
+        completion_tokens: int,
+        round_cost_digits: int = 6,
+        placeholder: object | None = None) -> None:
     """
     Display the totals.
 
     Args:
         cost: cost of all tokens
-        total_tokens: number of total tokens 
-        prompt_tokens: number of prompt tokens 
-        completion_tokens: number of completion tokens 
+        total_tokens: number of total tokens
+        prompt_tokens: number of prompt tokens
+        completion_tokens: number of completion tokens
+        round_cost_digits: number of digits to round `cost` to
+        placeholder: if not None; use this to write results to
     """
     cost_string = f"""
-    <b>Total Cost</b>: <code>${cost:.2f}</code><br>
+    <b>Total Cost</b>: <code>${cost:.{round_cost_digits}f}</code><br>
     """
     token_string = f"""
     Total Tokens: <code>{total_tokens:,}</code><br>
@@ -178,9 +236,20 @@ def display_totals(
     <p style="font-size: 13px; text-align: right">{cost_string}</p>
     <p style="font-size: 12px; text-align: right">{token_string}</p>
     """
-    st.markdown(cost_html, unsafe_allow_html=True)
+    if placeholder:
+        placeholder.markdown(cost_html, unsafe_allow_html=True)
+    else:
+        st.markdown(cost_html, unsafe_allow_html=True)
 
-def _return_mock_conversation() -> list[BaseMessage]:
+
+
+def _create_mock_message_chain(num_conversations: int = 10) -> list[BaseMessage]:
+    from faker import Faker
+    import random
+
+    random.seed(123)
+    fake = Faker()
+    Faker(123)
     """Returns a mock conversation with ChatGPT."""
     message = """
     This is some python:
@@ -192,27 +261,36 @@ def _return_mock_conversation() -> list[BaseMessage]:
 
     It is code.
     """
-    return [
-        SystemMessage(content="You are a helpful assistant."),
-        HumanMessage(content="What is the capital of France?"),
-        AIMessage(content='The capital of France is Paris.', additional_kwargs={}, example=False),  # noqa
-        HumanMessage(content="What is 1 + 1?"),
-        AIMessage(content='2', additional_kwargs={}, example=False),  # noqa
-        HumanMessage(content="What is 2 + 2?"),
-        AIMessage(content='4', additional_kwargs={}, example=False),  # noqa
-        HumanMessage(content="What is the capital of France?"),
-        AIMessage(content='The capital of France is Paris.', additional_kwargs={}, example=False),  # noqa
-        HumanMessage(content="What is 1 + 1?"),
-        AIMessage(content='2', additional_kwargs={}, example=False),  # noqa
-        HumanMessage(content="What is 2 + 2?"),
-        AIMessage(content='4', additional_kwargs={}, example=False),  # noqa
-        HumanMessage(content="What is the capital of France?"),
-        AIMessage(content='The capital of France is Paris.', additional_kwargs={}, example=False),  # noqa
-        HumanMessage(content="What is 1 + 1?"),
-        AIMessage(content='2', additional_kwargs={}, example=False),  # noqa
-        HumanMessage(content="What is 2 + 2?"),
-        AIMessage(content=message, additional_kwargs={}, example=False),  # noqa
+    messages = [SystemMessage(content="You are a helpful assistant.")]
+    for _ in range(num_conversations):
+        fake_human = ' '.join([fake.word() for _ in range(random.randint(5, 10))])
+        fake_ai = ' '.join([fake.word() for _ in range(random.randint(5, 10))])
+        messages += [
+            HumanMessage(content="Question: " + fake_human),
+            AIMessage(content="Answer: " + fake_ai),
+        ]
+    messages += [
+        HumanMessage(content="Question: " + message),
+        AIMessage(content="Answer: " + message),
     ]
+    return messages
+
+
+def _create_mock_chat_history(message_chain: list[BaseMessage]) -> list[ChatMetaData]:
+    # message_chain = list(reversed(message_chain))
+    chat_history = []
+    for i in range(1, len(message_chain), 2):
+        human_message = message_chain[i]
+        assert isinstance(human_message, HumanMessage)
+        ai_message = message_chain[i + 1]
+        assert isinstance(ai_message, AIMessage)
+        chat_history.append(ChatMetaData(
+            model_name='gpt-3.5-turbo',
+            human_question=human_message,
+            full_question=human_message.content + "this is some history and context sent in",
+            ai_response=ai_message,
+        ))
+    return chat_history
 
 # import streamlit as st
 

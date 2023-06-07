@@ -19,5 +19,6 @@ PyYAML
 ruff
 streamlit
 streamlit_chat
+tiktoken
 uvicorn
 xmltodict
