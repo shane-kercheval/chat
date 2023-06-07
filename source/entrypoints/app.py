@@ -166,6 +166,7 @@ def main() -> None:
                 total_tokens=chat.total_tokens,
                 prompt_tokens=chat.prompt_tokens,
                 completion_tokens=chat.completion_tokens,
+                is_total=False,
             )
 
     sh.display_totals(
@@ -173,7 +174,7 @@ def main() -> None:
         total_tokens=sum(x.total_tokens for x in chat_history),
         prompt_tokens=sum(x.prompt_tokens for x in chat_history),
         completion_tokens=sum(x.completion_tokens for x in chat_history),
-        round_cost_digits=4,
+        is_total=True,
         placeholder=result_placeholder,
     )
 

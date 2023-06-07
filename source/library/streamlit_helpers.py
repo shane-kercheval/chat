@@ -211,7 +211,7 @@ def display_totals(
         total_tokens: int,
         prompt_tokens: int,
         completion_tokens: int,
-        round_cost_digits: int = 6,
+        is_total: bool,
         placeholder: object | None = None) -> None:
     """
     Display the totals.
@@ -221,14 +221,17 @@ def display_totals(
         total_tokens: number of total tokens
         prompt_tokens: number of prompt tokens
         completion_tokens: number of completion tokens
-        round_cost_digits: number of digits to round `cost` to
+        is_total: whether or not the total cost of all conversations, or a single conversation
         placeholder: if not None; use this to write results to
     """
+
+    total_label = 'Total' if is_total else 'Message'
+    round_by = 4 if is_total else 6
     cost_string = f"""
-    <b>Total Cost</b>: <code>${cost:.{round_cost_digits}f}</code><br>
+    <b>{total_label} Cost</b>: <code>${cost:.{round_by}f}</code><br>
     """
     token_string = f"""
-    Total Tokens: <code>{total_tokens:,}</code><br>
+    {total_label} Tokens: <code>{total_tokens:,}</code><br>
     Prompt Tokens: <code>{prompt_tokens:,}</code><br>
     Completion Tokens: <code>{completion_tokens:,}</code><br>
     """
