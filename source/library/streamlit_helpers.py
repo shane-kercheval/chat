@@ -1,6 +1,7 @@
 """Helper functions for streamlit app."""
 from functools import cache
 import re
+from pydantic import BaseModel, constr
 import streamlit as st
 from langchain.schema import BaseMessage, SystemMessage, HumanMessage, AIMessage
 from langchain.callbacks.openai_info import MODEL_COST_PER_1K_TOKENS
@@ -14,47 +15,39 @@ def get_tiktok_encoding(model: str) -> tiktoken.Encoding:
     """Helper function that returns an encoding method for a given model."""
     return tiktoken.encoding_for_model(model)
 
+# class ChatMetaData(Base):
 
-class ChatMetaData():
-    """TBD."""
 
-    def __init__(
-            self,
-            model_name: str,
-            human_question: HumanMessage,
-            full_question: str,
-            ai_response: AIMessage,
-            prompt_tokens: int | None = None,
-            completion_tokens: int | None = None,
-            total_tokens: int | None = None,
-            cost: float | None = None,
-        ) -> None:
-        """
-        full_question is the question and any history or prompt template that langchain sent.
-        If tokens/cost is not provided, they will be calculated.
-        prompt_history is not necessarily the same thing as all history. It is the history used in
-        the prompt, but not all history is necessarily used.
-        """
-        assert model_name in {'gpt-3.5-turbo', 'gpt-4'}
 
-        encoding = get_tiktok_encoding(model=model_name)
-        self.model_name = model_name
-        self.human_question = human_question
-        self.full_question = full_question
-        self.ai_response = ai_response
-        if not prompt_tokens:
-            prompt_tokens = len(encoding.encode(full_question))
-        self.prompt_tokens = prompt_tokens
-        if not completion_tokens:
-            completion_tokens = len(encoding.encode(ai_response.content))
-        self.completion_tokens = completion_tokens
-        if not total_tokens:
-            total_tokens = prompt_tokens + completion_tokens
-        self.total_tokens = total_tokens
-        if not cost:
-            cost = MODEL_COST_PER_1K_TOKENS[model_name] * (total_tokens / 1_000)
-        self.cost = cost
+class MessageMetaData(BaseModel):
+    """
+    full_question is the question and any history or prompt template that langchain sent.
+    If tokens/cost is not provided, they will be calculated.
+    prompt_history is not necessarily the same thing as all history. It is the history used in
+    the prompt, but not all history is necessarily used.
+    """
 
+    model_name: constr(strip_whitespace=True, regex=r'^(gpt-3\.5-turbo|gpt-4)$')
+    human_question: HumanMessage
+    full_question: str
+    ai_response: AIMessage
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    cost: float | None = None
+
+    # This method will be called after the class is created
+    # and will calculate the value of z if it wasn't supplied
+    # by the user
+    def __init__(self, **data):
+        super().__init__(**data)
+        encoding = get_tiktok_encoding(model=self.model_name)
+
+        if not self.prompt_tokens:
+            self.prompt_tokens = len(encoding.encode(self.full_question))
+            self.completion_tokens = len(encoding.encode(self.ai_response.content))
+            self.total_tokens = self.prompt_tokens + self.completion_tokens
+            self.cost = MODEL_COST_PER_1K_TOKENS[self.model_name] * (self.total_tokens / 1_000)
 
 
 def apply_css() -> None:
@@ -176,16 +169,17 @@ def get_prompt_template(template_name: str) -> str:
         template_name: name of the prompt-template to get
     """
     return """
-            This is a prompt.
+This is a prompt.
 
-            It has fields like this `{{context}}`
+It has fields like this `{{context}}`
 
-            And this:
+And this:
 
-            ```
-            {{more_context}}
-            ```
-            """
+```
+{{more_context}}
+```
+
+"""
 
 
 def get_fields_from_template(prompt_template: str) -> list[str]:
@@ -224,7 +218,6 @@ def display_totals(
         is_total: whether or not the total cost of all conversations, or a single conversation
         placeholder: if not None; use this to write results to
     """
-
     total_label = 'Total' if is_total else 'Message'
     round_by = 4 if is_total else 6
     cost_string = f"""
@@ -245,7 +238,6 @@ def display_totals(
         st.markdown(cost_html, unsafe_allow_html=True)
 
 
-
 def _create_mock_message_chain(num_conversations: int = 10) -> list[BaseMessage]:
     from faker import Faker
     import random
@@ -255,14 +247,14 @@ def _create_mock_message_chain(num_conversations: int = 10) -> list[BaseMessage]
     Faker(123)
     """Returns a mock conversation with ChatGPT."""
     message = """
-    This is some python:
+This is some python:
 
-    ```
-    def python():
-        return True
-    ```
+```
+def python():
+    return True
+```
 
-    It is code.
+It is code.
     """
     messages = [SystemMessage(content="You are a helpful assistant.")]
     for _ in range(num_conversations):
@@ -279,7 +271,7 @@ def _create_mock_message_chain(num_conversations: int = 10) -> list[BaseMessage]
     return messages
 
 
-def _create_mock_chat_history(message_chain: list[BaseMessage]) -> list[ChatMetaData]:
+def _create_mock_chat_history(message_chain: list[BaseMessage]) -> list[MessageMetaData]:
     # message_chain = list(reversed(message_chain))
     chat_history = []
     for i in range(1, len(message_chain), 2):
@@ -287,13 +279,16 @@ def _create_mock_chat_history(message_chain: list[BaseMessage]) -> list[ChatMeta
         assert isinstance(human_message, HumanMessage)
         ai_message = message_chain[i + 1]
         assert isinstance(ai_message, AIMessage)
-        chat_history.append(ChatMetaData(
+        chat_history.append(MessageMetaData(
             model_name='gpt-3.5-turbo',
             human_question=human_message,
             full_question=human_message.content + "this is some history and context sent in",
             ai_response=ai_message,
         ))
     return chat_history
+
+# def _create_mock_history(arg: type) -> return_type:
+    
 
 # import streamlit as st
 

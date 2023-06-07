@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 import streamlit as st
 from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage, AIMessage
+from langchain.schema import HumanMessage
 import source.library.streamlit_helpers as sh
 
 # TODO: document
@@ -105,6 +105,7 @@ def main() -> None:
         st.markdown("# History")
 
 
+
     # display the chat text_area and total cost side-by-side
     col_craft_message, col_conversation_totals = st.columns([5, 1])
     with col_craft_message:
@@ -126,6 +127,7 @@ def main() -> None:
 
     if submit_button and user_input:
         human_message = HumanMessage(content=user_input)
+        st.session_state.message_chain.append(human_message)
         with st.spinner("Thinking..."):
             if openai_model == 'GPT-3.5':
                 model_name = 'gpt-3.5-turbo'
@@ -139,16 +141,16 @@ def main() -> None:
             chat = ChatOpenAI(model=model_name, temperature=temperature, max_tokens=max_tokens)
             # TODO: pass all messages and/or figure out memory buffer strategy
             history = [st.session_state.message_chain[0]] + [st.session_state.message_chain[-1]]
+            print("history: " + str(history))
             response = chat(history)
 
-        chat_data = sh.ChatMetaData(
+        chat_data = sh.MessageMetaData(
             model_name=model_name,
             human_question=human_message,
             full_question=' '.join([x.content for x in history]),
             ai_response=response,
         )
         st.session_state.chat_history.append(chat_data)
-        st.session_state.message_chain.append(human_message)
         st.session_state.message_chain.append(response)
         message_state['chat_message'] = user_input  # Update session state value
 
@@ -169,6 +171,7 @@ def main() -> None:
                 is_total=False,
             )
 
+    # display totals for entire conversation
     sh.display_totals(
         cost=sum(x.cost for x in chat_history),
         total_tokens=sum(x.total_tokens for x in chat_history),
