@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 import streamlit as st
 from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage, AIMessage
+from langchain.schema import HumanMessage, AIMessage, SystemMessage
 import source.library.streamlit_helpers as sh
 
 # TODO: document
@@ -133,14 +133,23 @@ def main() -> None:
             placeholder="Ask a question.",
             height=150,
         )
-        # this submit_button when send the message to ChatGPT
-        submit_button = st.button("Submit")
     with col_conversation_totals:
         result_placeholder = st.empty()
 
+    col_submit, col_clear = st.columns([5, 1])
+    with col_submit:
+        submit_button = st.button("Submit")
+    with col_clear:
+        clear_button = st.button("Clear")
+        if clear_button:
+            st.session_state['chat_conversation'] = sh.ChatConversation(
+                chat_history=[],
+                message_chain=[
+                    SystemMessage(content="You are a helpful assistant."),
+                ],
+            )
 
     sh.display_horizontal_line()
-
     chat_conversation = st.session_state.get('chat_conversation', [])
 
     if submit_button and user_input:
@@ -162,6 +171,7 @@ def main() -> None:
             print("history: " + str(history))
             # response = chat(history)
             response = AIMessage(content = sh._create_mock_message())
+            # st.session_state['chat_message'] = ""
 
         chat_data = sh.MessageMetaData(
             model_name=model_name,
@@ -171,33 +181,35 @@ def main() -> None:
         )
         chat_conversation.chat_history.append(chat_data)
         chat_conversation.message_chain.append(response)
-        message_state['chat_message'] = user_input  # Update session state value
+        # message_state['chat_message'] = user_input  # Update session state value
+        # message_state['chat_message'] = ''
 
     # display message history
-    chat_history = list(reversed(chat_conversation.chat_history))
-    for chat in chat_history:
-        col_messages, col_totals = st.columns([5, 1])
-        with col_messages:
-            sh.display_chat_message(chat.ai_response.content, is_human=False)
-            sh.display_chat_message(chat.human_question.content, is_human=True)
-        with col_totals:
-            sh.display_totals(
-                cost=chat.cost,
-                total_tokens=chat.total_tokens,
-                prompt_tokens=chat.prompt_tokens,
-                completion_tokens=chat.completion_tokens,
-                is_total=False,
-            )
+    if chat_conversation:
+        chat_history = list(reversed(chat_conversation.chat_history))
+        for chat in chat_history:
+            col_messages, col_totals = st.columns([5, 1])
+            with col_messages:
+                sh.display_chat_message(chat.ai_response.content, is_human=False)
+                sh.display_chat_message(chat.human_question.content, is_human=True)
+            with col_totals:
+                sh.display_totals(
+                    cost=chat.cost,
+                    total_tokens=chat.total_tokens,
+                    prompt_tokens=chat.prompt_tokens,
+                    completion_tokens=chat.completion_tokens,
+                    is_total=False,
+                )
 
-    # display totals for entire conversation
-    sh.display_totals(
-        cost=sum(x.cost for x in chat_history),
-        total_tokens=sum(x.total_tokens for x in chat_history),
-        prompt_tokens=sum(x.prompt_tokens for x in chat_history),
-        completion_tokens=sum(x.completion_tokens for x in chat_history),
-        is_total=True,
-        placeholder=result_placeholder,
-    )
+        # display totals for entire conversation
+        sh.display_totals(
+            cost=sum(x.cost for x in chat_history),
+            total_tokens=sum(x.total_tokens for x in chat_history),
+            prompt_tokens=sum(x.prompt_tokens for x in chat_history),
+            completion_tokens=sum(x.completion_tokens for x in chat_history),
+            is_total=True,
+            placeholder=result_placeholder,
+        )
 
     print("--------------END--------------")
 
