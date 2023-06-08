@@ -1,0 +1,8 @@
+name: Write tests for code
+category: code
+template: |
+  Write unit tests using pytest for the following code. Try to test for both edge cases and standard cases.
+
+  ```
+  {{code}}
+  ```

@@ -1,0 +1,8 @@
+name: Comment code
+category: code
+template: |
+  Create helpful comments throughout the following code:
+
+  ```
+  {{code}}
+  ```

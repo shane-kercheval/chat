@@ -80,7 +80,7 @@ def main() -> None:
             )
             max_tokens = st.slider(
                 label="Max Tokens",
-                min_value=100, max_value=3000, value=1000, step=100,
+                min_value=100, max_value=3000, value=2000, step=100,
                 help="The maximum number of tokens to generate in the completion."  # noqa
             )
 

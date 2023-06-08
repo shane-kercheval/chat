@@ -1,0 +1,8 @@
+name: Explain code
+category: code
+template: |
+  Explain the following code:
+
+  ```
+  {{code}}
+  ```

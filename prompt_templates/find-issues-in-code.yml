@@ -1,0 +1,8 @@
+name: Find issues in code
+category: code
+template: |
+  Find issues in the following code:
+
+  ```
+  {{code}}
+  ```
