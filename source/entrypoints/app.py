@@ -24,6 +24,21 @@ st.set_page_config(
     layout='wide',
 )
 
+@st.cache_data
+def load_prompt_templates() -> dict:
+    """TBD."""
+    import os
+    import yaml
+    template_files = os.listdir('/code/prompt_templates/')
+    templates = {}
+    for file_name in template_files:
+        with open(os.path.join('/code/prompt_templates/', file_name)) as handle:
+            yaml_data = yaml.safe_load(handle)
+            template_name = yaml_data.pop('name')
+            assert template_name not in templates
+            templates[template_name] = yaml_data
+    return templates
+
 
 def initialize() -> None:
     """Initialize environment and app."""
@@ -70,15 +85,19 @@ def main() -> None:
             )
 
         st.markdown("# Prompt Template")
-        template_name = sh.create_prompt_template_options()
+        prompt_templates = load_prompt_templates()
+        template_name = sh.create_prompt_template_options(templates=prompt_templates)
         if template_name != '<Select>':
-            prompt_template = sh.get_prompt_template(template_name=template_name)
+            prompt_template = prompt_templates[template_name]['template']
             template_fields = sh.get_fields_from_template(prompt_template=prompt_template)
             field_values = []
             # use form to prevent text_areas from refreshing app after focus moves away
             with st.form(key="prompt_template_fields_form"):
                 st.markdown("### Fields")
-                st.markdown("Fill in the information for the following fields referred to in the prompt template, shown below.")  # noqa
+                st.markdown(
+                    '<p style="font-size: 11px; "><i>Fill in the information for the following fields referred to in the prompt template, shown below.</i></p>',  # noqa
+                    unsafe_allow_html=True,
+                )
                 for field in template_fields:
                     field_values.append((field, st.text_area(field, height=100, key=field)))
                     # field_values.append((match, st.sidebar.text_area(match, height=100)))
@@ -99,9 +118,10 @@ def main() -> None:
             st.markdown('### Template:')
             st.sidebar.text(prompt_template)
 
-        st.markdown("# History")
-
-
+        # st.markdown("# History")
+        # conversation_history = sh._create_mock_history(num_history=5)
+        # first_messages = [x.message_chain[1].content[0:40] for x in conversation_history]
+        # st.radio("history", first_messages)
 
     # display the chat text_area and total cost side-by-side
     col_craft_message, col_conversation_totals = st.columns([5, 1])

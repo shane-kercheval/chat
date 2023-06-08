@@ -1,0 +1,21 @@
+name: Create doc strings
+category: code
+template: |
+  Create doc strings and type hints for the following python function. It should be in the format:
+
+  ```
+  def func(variable_a: str) -> int:
+      """
+      <This is the description>
+
+      Args:
+          variable_a: <description of variable_a>  
+      """
+      return 1
+  ```
+
+  Here is the function:
+
+  ```
+  {{python_function}}
+  ```

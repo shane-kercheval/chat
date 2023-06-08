@@ -1,0 +1,8 @@
+name: Summarize text
+category: text
+template: |
+  Summarize the following text and explain any advanced concepts.
+
+  ```
+  {{text}}
+  ```

@@ -1,0 +1,8 @@
+name: Make text sound better
+category: text
+template: |
+  Improve the text below. Make it sound clear and concise. It should sound professional while remaining informal.
+
+  ```
+  {{text}}
+  ```

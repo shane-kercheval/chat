@@ -159,38 +159,13 @@ def display_chat_message(message: str, is_human: bool) -> None:
     with col2:
         st.markdown(f"<div class='{sender_class}'>{message}</div>", unsafe_allow_html=True)
 
-
-def create_prompt_template_options() -> None:
+def create_prompt_template_options(templates: dict) -> None:
     """Returns a drop-down widget with prompt templates."""
+    template_names = list(templates.keys())
     return st.selectbox(
         '<label should be hidden>',
-        (
-            '<Select>',
-            'Make text sound better.',
-            'Summarize text.',
-            'Code: Write doc strings',
-        ),
+        ['<Select>'] + template_names,
     )
-
-def get_prompt_template(template_name: str) -> str:
-    """
-    Given a `template_name` get the corresponding prompt-template.
-
-    Args:
-        template_name: name of the prompt-template to get
-    """
-    return """
-This is a prompt.
-
-It has fields like this `{{context}}`
-
-And this:
-
-```
-{{more_context}}
-```
-
-"""
 
 
 def get_fields_from_template(prompt_template: str) -> list[str]:
@@ -281,10 +256,10 @@ def _create_mock_message() -> str:
     import random
     from faker import Faker
     fake = Faker()
-    return ' '.join([fake.word() for _ in range(random.randint(5, 10))])
+    return ' '.join([fake.word() for _ in range(random.randint(10, 100))])
 
 
-def _create_mock_chat_history(message_chain: list[BaseMessage]) -> list[MessageMetaData]:
+def _create_mock_chat_thread(message_chain: list[BaseMessage]) -> list[MessageMetaData]:
     # message_chain = list(reversed(message_chain))
     chat_history = []
     for i in range(1, len(message_chain), 2):
@@ -302,10 +277,12 @@ def _create_mock_chat_history(message_chain: list[BaseMessage]) -> list[MessageM
 
 def _create_mock_conversation(num_chats: int = 10) -> ChatConversation:
     message_chain = _create_mock_message_chain(num_chats=num_chats)
-    history = _create_mock_chat_history(message_chain=message_chain)
+    history = _create_mock_chat_thread(message_chain=message_chain)
     return ChatConversation(message_chain=message_chain, chat_history=history)
 
-    
+def _create_mock_history(num_history: int = 10) -> list[ChatConversation]:
+    return [_create_mock_conversation(num_chats=x) for x in range(num_history)]
+
 
 # import streamlit as st
 
