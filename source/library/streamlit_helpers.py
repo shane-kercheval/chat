@@ -150,14 +150,13 @@ def display_chat_message(message: str, is_human: bool) -> None:
         message: the message to display
         is_human: True if the message is from a human; False if message is OpenAI response
     """
-    sender_emoji = "👨‍💼" if is_human else "🤖"
-    sender_class = "sender" if is_human else "receiver"
-
-    col1, col2 = st.columns([1, 20])
-    with col1:
-        st.markdown(f"<div class='emoji'>{sender_emoji}</div>", unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"<div class='{sender_class}'>{message}</div>", unsafe_allow_html=True)
+    # col1, col2 = st.columns([1, 25])
+    # with col1:
+    #     sender_emoji = "👨‍💼" if is_human else "🤖"
+    #     st.markdown(f"<div class='emoji'>{sender_emoji}</div>", unsafe_allow_html=True)
+    # with col2:
+    sender_class = 'sender' if is_human else 'receiver'
+    st.markdown(f"<div class='{sender_class}'>{message}</div>", unsafe_allow_html=True)
 
 def create_prompt_template_options(templates: dict) -> None:
     """Returns a drop-down widget with prompt templates."""
