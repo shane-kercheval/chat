@@ -158,7 +158,8 @@ def display_chat_message(message: str, is_human: bool) -> None:
 
 def create_prompt_template_options(templates: dict) -> None:
     """Returns a drop-down widget with prompt templates."""
-    template_names = list(templates.keys())
+    template_names = sorted(templates.items(), key=lambda x: (x[1]['category'], x[1]['template']))
+    template_names = [x[0] for x in template_names]
     return st.selectbox(
         '<label should be hidden>',
         ['<Select>'] + template_names,
