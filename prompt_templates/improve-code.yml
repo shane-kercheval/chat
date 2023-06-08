@@ -1,0 +1,8 @@
+name: Improve and optimize code
+category: code
+template: |
+  Improve and optimize the following code. Explain the the improvements made.
+
+  ```
+  {{code}}
+  ```
