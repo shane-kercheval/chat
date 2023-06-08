@@ -80,7 +80,7 @@ def apply_css() -> None:
             background-color: #d8f0ff;
             padding: 20px;
             border-radius: 5px;
-            margin-bottom: 30px;
+            margin-bottom: 45px;
         }
         .receiver {
             background-color: #F0F0F0;
