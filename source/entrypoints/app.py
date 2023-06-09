@@ -24,6 +24,7 @@ st.set_page_config(
     layout='wide',
 )
 
+
 @st.cache_data
 def load_prompt_templates() -> dict:
     """TBD."""
@@ -44,12 +45,7 @@ def initialize() -> None:
     """Initialize environment and app."""
     # Load the OpenAI API key from the environment variable
     load_dotenv()
-    # test that the API key exists
-    if os.getenv("OPENAI_API_KEY") is None or os.getenv("OPENAI_API_KEY") == "":
-        print("OPENAI_API_KEY is not set")
-        exit(1)
-    else:
-        print("OPENAI_API_KEY is set")
+    assert os.getenv("OPENAI_API_KEY")
 
 
 def main() -> None:
@@ -57,20 +53,14 @@ def main() -> None:
     initialize()
     sh.apply_css()
     message_state = st.session_state.setdefault('state', {'chat_message': ''})
-    # initialize message history
-    # We have to differentiate between the entire message chain/history of the conversation
-    # (including the SystemMessage) and the history used for any given chat message (which may be a
-    # subset of that history) and the corresponding metadata of the message (# of tokens, cost)
-    # In other words, we can't regenerate the cost based on the entire list of messages
-    # because that doesn't show the entire prompt/message that was sent to ChatGPT (i.e. it only
-    # shows our question, not the context)
     if 'chat_conversation' not in st.session_state:
-        # list of langhain Messages
         st.session_state.chat_conversation = sh._create_mock_conversation(num_chats=2)
 
     with st.sidebar:
         st.markdown('# Options')
         openai_model = st.selectbox(label="Model", options=('GPT-3.5', 'GPT-4'))
+        # use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
+        # use_stack_overflow = st.checkbox(label="Use Stack Overflow", value=False)
 
         with st.expander("Additional Options"):
             temperature = st.slider(
@@ -118,6 +108,17 @@ def main() -> None:
             st.markdown('### Template:')
             st.sidebar.text(prompt_template)
 
+        st.markdown("# Tools")
+        tool_names = [
+            'Summarize PDF',
+            'Summarize URL (Single Page)',
+            'Agents??',
+        ]
+        template_name = st.selectbox(
+            '<label should be hidden>',
+            ['<Select>'] + tool_names,
+        )
+        
         # st.markdown("# History")
         # conversation_history = sh._create_mock_history(num_history=5)
         # first_messages = [x.message_chain[1].content[0:40] for x in conversation_history]
@@ -136,9 +137,16 @@ def main() -> None:
     with col_conversation_totals:
         result_placeholder = st.empty()
 
-    col_submit, col_clear = st.columns([5, 1])
+    col_submit,  col_search, col_stack, col_clear =  st.columns([2, 4, 4, 2])
     with col_submit:
         submit_button = st.button("Submit")
+    
+    with col_search:
+        use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
+    with col_stack:
+        use_stack_overflow = st.checkbox(label="Use Stack Overflow", value=False)
+
+
     with col_clear:
         clear_button = st.button("Clear")
         if clear_button:

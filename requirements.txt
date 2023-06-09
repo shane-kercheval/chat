@@ -1,6 +1,7 @@
 click
 coverage
-dotenv
+duckduckgo-search
+faker
 fastapi
 helpsk
 jupyter-contrib-nbextensions
