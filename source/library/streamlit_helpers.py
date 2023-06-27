@@ -1,11 +1,14 @@
 """Helper functions for streamlit app."""
 from functools import cache
 import re
-from pydantic import BaseModel, constr
+# from pydantic import BaseModel, constr
 import streamlit as st
-from langchain.schema import BaseMessage, SystemMessage, HumanMessage, AIMessage
-from langchain.callbacks.openai_info import MODEL_COST_PER_1K_TOKENS
+# from langchain.schema import BaseMessage, SystemMessage, HumanMessage, AIMessage
+# from langchain.callbacks.openai_info import MODEL_COST_PER_1K_TOKENS
 import tiktoken
+
+
+from llm_chain.base import ChatModel, MessageRecord
 
 
 @cache
@@ -14,49 +17,49 @@ def get_tiktok_encoding(model: str) -> tiktoken.Encoding:
     return tiktoken.encoding_for_model(model)
 
 
-class MessageMetaData(BaseModel):
-    """
-    full_question is the question and any history or prompt template that langchain sent.
-    If tokens/cost is not provided, they will be calculated.
-    prompt_history is not necessarily the same thing as all history. It is the history used in
-    the prompt, but not all history is necessarily used.
-    """
+# class MessageMetaData(BaseModel):
+#     """
+#     full_question is the question and any history or prompt template that langchain sent.
+#     If tokens/cost is not provided, they will be calculated.
+#     prompt_history is not necessarily the same thing as all history. It is the history used in
+#     the prompt, but not all history is necessarily used.
+#     """
 
-    model_name: constr(strip_whitespace=True, regex=r'^(gpt-3\.5-turbo|gpt-4)$')
-    human_question: HumanMessage
-    full_question: str
-    ai_response: AIMessage
-    prompt_tokens: int | None = None
-    completion_tokens: int | None = None
-    total_tokens: int | None = None
-    cost: float | None = None
+#     model_name: constr(strip_whitespace=True, regex=r'^(gpt-3\.5-turbo|gpt-4)$')
+#     human_question: HumanMessage
+#     full_question: str
+#     ai_response: AIMessage
+#     prompt_tokens: int | None = None
+#     completion_tokens: int | None = None
+#     total_tokens: int | None = None
+#     cost: float | None = None
 
-    # This method will be called after the class is created
-    # and will calculate the value of prompt_tokens if it wasn't supplied
-    # by the user
-    def __init__(self, **data):  # noqa: ANN003
-        super().__init__(**data)
-        encoding = get_tiktok_encoding(model=self.model_name)
+#     # This method will be called after the class is created
+#     # and will calculate the value of prompt_tokens if it wasn't supplied
+#     # by the user
+#     def __init__(self, **data):  # noqa: ANN003
+#         super().__init__(**data)
+#         encoding = get_tiktok_encoding(model=self.model_name)
 
-        if not self.prompt_tokens:
-            self.prompt_tokens = len(encoding.encode(self.full_question))
-            self.completion_tokens = len(encoding.encode(self.ai_response.content))
-            self.total_tokens = self.prompt_tokens + self.completion_tokens
-            self.cost = MODEL_COST_PER_1K_TOKENS[self.model_name] * (self.total_tokens / 1_000)
+#         if not self.prompt_tokens:
+#             self.prompt_tokens = len(encoding.encode(self.full_question))
+#             self.completion_tokens = len(encoding.encode(self.ai_response.content))
+#             self.total_tokens = self.prompt_tokens + self.completion_tokens
+#             self.cost = MODEL_COST_PER_1K_TOKENS[self.model_name] * (self.total_tokens / 1_000)
 
 
-class ChatConversation(BaseModel):
-    """
-    We have to differentiate between the entire message chain/history of the conversation
-    (including the SystemMessage) and the history used for any given chat message (which may be a
-    subset of that history) and the corresponding metadata of the message (# of tokens, cost)
-    In other words, we can't regenerate the cost based on the entire list of messages
-    because that doesn't show the entire prompt/message that was sent to ChatGPT (i.e. it only
-    shows our question, not the context).
-    """
+# class ChatConversation(BaseModel):
+#     """
+#     We have to differentiate between the entire message chain/history of the conversation
+#     (including the SystemMessage) and the history used for any given chat message (which may be a
+#     subset of that history) and the corresponding metadata of the message (# of tokens, cost)
+#     In other words, we can't regenerate the cost based on the entire list of messages
+#     because that doesn't show the entire prompt/message that was sent to ChatGPT (i.e. it only
+#     shows our question, not the context).
+#     """
 
-    chat_history: list[MessageMetaData]  # i.e. question/response/costs/tokens
-    message_chain: list[BaseMessage]  # i.e. each SystemMessage/HumanMessage/AIMessage in history
+#     chat_history: list[MessageMetaData]  # i.e. question/response/costs/tokens
+#     message_chain: list[BaseMessage]  # i.e. each SystemMessage/HumanMessage/AIMessage in history
 
 
 def apply_css() -> None:
@@ -221,32 +224,31 @@ def display_totals(
     else:
         st.markdown(cost_html, unsafe_allow_html=True)
 
+# def _create_mock_message_chain(num_chats: int = 10) -> list[BaseMessage]:
+#     """Returns a mock conversation with ChatGPT."""
+#     message = """
+# This is some python:
 
-def _create_mock_message_chain(num_chats: int = 10) -> list[BaseMessage]:
-    """Returns a mock conversation with ChatGPT."""
-    message = """
-This is some python:
+# ```
+# def python():
+#     return True
+# ```
 
-```
-def python():
-    return True
-```
-
-It is code.
-    """
-    messages = [SystemMessage(content="You are a helpful assistant.")]
-    for _ in range(num_chats):
-        fake_human = _create_mock_message()
-        fake_ai = _create_mock_message()
-        messages += [
-            HumanMessage(content="Question: " + fake_human),
-            AIMessage(content="Answer: " + fake_ai),
-        ]
-    messages += [
-        HumanMessage(content="Question: " + message),
-        AIMessage(content="Answer: " + message),
-    ]
-    return messages
+# It is code.
+#     """
+#     messages = [SystemMessage(content="You are a helpful assistant.")]
+#     for _ in range(num_chats):
+#         fake_human = _create_mock_message()
+#         fake_ai = _create_mock_message()
+#         messages += [
+#             HumanMessage(content="Question: " + fake_human),
+#             AIMessage(content="Answer: " + fake_ai),
+#         ]
+#     messages += [
+#         HumanMessage(content="Question: " + message),
+#         AIMessage(content="Answer: " + message),
+#     ]
+#     return messages
 
 
 def _create_mock_message() -> str:
@@ -257,29 +259,47 @@ def _create_mock_message() -> str:
     return ' '.join([fake.word() for _ in range(random.randint(10, 100))])
 
 
-def _create_mock_chat_thread(message_chain: list[BaseMessage]) -> list[MessageMetaData]:
-    # message_chain = list(reversed(message_chain))
-    chat_history = []
-    for i in range(1, len(message_chain), 2):
-        human_message = message_chain[i]
-        assert isinstance(human_message, HumanMessage)
-        ai_message = message_chain[i + 1]
-        assert isinstance(ai_message, AIMessage)
-        chat_history.append(MessageMetaData(
-            model_name='gpt-3.5-turbo',
-            human_question=human_message,
-            full_question=human_message.content + "this is some history and context sent in",
-            ai_response=ai_message,
-        ))
-    return chat_history
+class MockChatModel(ChatModel):
+    """TODO."""
 
-def _create_mock_conversation(num_chats: int = 10) -> ChatConversation:
-    message_chain = _create_mock_message_chain(num_chats=num_chats)
-    history = _create_mock_chat_thread(message_chain=message_chain)
-    return ChatConversation(message_chain=message_chain, chat_history=history)
+    def __init__(self, model_name: str):
+        super().__init__()
+        self.model_name = model_name
 
-def _create_mock_history(num_history: int = 10) -> list[ChatConversation]:
-    return [_create_mock_conversation(num_chats=x) for x in range(num_history)]
+    def _run(self, prompt: str) -> MessageRecord:
+        return MessageRecord(
+            prompt=prompt,
+            response=_create_mock_message(),
+            cost=1.25,
+            prompt_tokens=100,
+            response_tokens=75,
+            total_tokens=175,
+        )
+
+
+# def _create_mock_chat_thread(message_chain: list[BaseMessage]) -> list[MessageMetaData]:
+#     # message_chain = list(reversed(message_chain))
+#     chat_history = []
+#     for i in range(1, len(message_chain), 2):
+#         human_message = message_chain[i]
+#         assert isinstance(human_message, HumanMessage)
+#         ai_message = message_chain[i + 1]
+#         assert isinstance(ai_message, AIMessage)
+#         chat_history.append(MessageMetaData(
+#             model_name='gpt-3.5-turbo',
+#             human_question=human_message,
+#             full_question=human_message.content + "this is some history and context sent in",
+#             ai_response=ai_message,
+#         ))
+#     return chat_history
+
+# def _create_mock_conversation(num_chats: int = 10) -> ChatConversation:
+#     message_chain = _create_mock_message_chain(num_chats=num_chats)
+#     history = _create_mock_chat_thread(message_chain=message_chain)
+#     return ChatConversation(message_chain=message_chain, chat_history=history)
+
+# def _create_mock_history(num_history: int = 10) -> list[ChatConversation]:
+#     return [_create_mock_conversation(num_chats=x) for x in range(num_history)]
 
 
 # import streamlit as st

@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 import streamlit as st
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from llm_chain.base import ChatModel
+from llm_chain.models import OpenAIChat
 import source.library.streamlit_helpers as sh
 
 # TODO: document
@@ -48,17 +50,22 @@ def initialize() -> None:
     assert os.getenv("OPENAI_API_KEY")
 
 
+def create_chat_model() -> ChatModel:
+    """TODO."""
+    return sh.MockChatModel(model_name='mock')
+    # return OpenAIChat(model_name='gpt-3.5-turbo')
+
 def main() -> None:
     """Defines the application structure and behavior."""
     initialize()
     sh.apply_css()
     message_state = st.session_state.setdefault('state', {'chat_message': ''})
-    if 'chat_conversation' not in st.session_state:
-        st.session_state.chat_conversation = sh._create_mock_conversation(num_chats=2)
+    if 'chat_model' not in st.session_state:
+        st.session_state.chat_model = create_chat_model()
 
     with st.sidebar:
         st.markdown('# Options')
-        openai_model = st.selectbox(label="Model", options=('GPT-3.5', 'GPT-4'))
+        openai_model_name = st.selectbox(label="Model", options=('GPT-3.5', 'GPT-4'))
         # use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
         # use_stack_overflow = st.checkbox(label="Use Stack Overflow", value=False)
 
@@ -118,7 +125,7 @@ def main() -> None:
             '<label should be hidden>',
             ['<Select>'] + tool_names,
         )
-        
+
         # st.markdown("# History")
         # conversation_history = sh._create_mock_history(num_history=5)
         # first_messages = [x.message_chain[1].content[0:40] for x in conversation_history]
@@ -140,7 +147,7 @@ def main() -> None:
     col_submit,  col_search, col_stack, col_clear =  st.columns([2, 4, 4, 2])
     with col_submit:
         submit_button = st.button("Submit")
-    
+
     with col_search:
         use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
     with col_stack:
@@ -150,71 +157,72 @@ def main() -> None:
     with col_clear:
         clear_button = st.button("Clear")
         if clear_button:
-            st.session_state['chat_conversation'] = sh.ChatConversation(
-                chat_history=[],
-                message_chain=[
-                    SystemMessage(content="You are a helpful assistant."),
-                ],
-            )
+            st.session_state['chat_model'] = create_chat_model()
 
     sh.display_horizontal_line()
-    chat_conversation = st.session_state.get('chat_conversation', [])
+    chat_model = st.session_state.get('chat_model', create_chat_model())  # TODO...?
 
     if submit_button and user_input:
-        human_message = HumanMessage(content=user_input)
-        chat_conversation.message_chain.append(human_message)
+        # human_message = HumanMessage(content=user_input)
+        # chat_model.message_chain.append(human_message)
         with st.spinner("Thinking..."):
-            if openai_model == 'GPT-3.5':
+            # TODO: need to set this in teh model
+            if openai_model_name == 'GPT-3.5':
                 model_name = 'gpt-3.5-turbo'
-            elif openai_model == 'GPT-4':
+            elif openai_model_name == 'GPT-4':
                 model_name = 'gpt-4'
             else:
-                raise ValueError(openai_model)
+                raise ValueError(openai_model_name)
 
             print(f"Calling ChatGPT: model={model_name}; temp={temperature}; max_tokens={max_tokens}")  # noqa
 
-            chat = ChatOpenAI(model=model_name, temperature=temperature, max_tokens=max_tokens)
+            # chat = ChatOpenAI(model=model_name, temperature=temperature, max_tokens=max_tokens)
             # TODO: pass all messages and/or figure out memory buffer strategy
-            history = [chat_conversation.message_chain[0]] + [chat_conversation.message_chain[-1]]
-            print("history: " + str(history))
+            # history = [chat_model.message_chain[0]] + [chat_model.message_chain[-1]]
+            # print("history: " + str(history))
             # response = chat(history)
-            response = AIMessage(content = sh._create_mock_message())
+            # response = AIMessage(content = sh._create_mock_message())
             # st.session_state['chat_message'] = ""
+            chat_model.model_name = model_name
+            chat_model(prompt=user_input)
 
-        chat_data = sh.MessageMetaData(
-            model_name=model_name,
-            human_question=human_message,
-            full_question=' '.join([x.content for x in history]),
-            ai_response=response,
-        )
-        chat_conversation.chat_history.append(chat_data)
-        chat_conversation.message_chain.append(response)
+        # chat_data = sh.MessageMetaData(
+        #     model_name=model_name,
+        #     human_question=human_message,
+        #     full_question=' '.join([x.content for x in history]),
+        #     ai_response=response,
+        # )
+        # chat_model.chat_history.append(chat_data)
+        # chat_model.message_chain.append(response)
         # message_state['chat_message'] = user_input  # Update session state value
         # message_state['chat_message'] = ''
 
     # display message history
-    if chat_conversation:
-        chat_history = list(reversed(chat_conversation.chat_history))
+    if chat_model.history:
+        chat_history = list(reversed(chat_model.history))
         for chat in chat_history:
             col_messages, col_totals = st.columns([5, 1])
             with col_messages:
-                sh.display_chat_message(chat.ai_response.content, is_human=False)
-                sh.display_chat_message(chat.human_question.content, is_human=True)
+                sh.display_chat_message(chat.response, is_human=False)
+                sh.display_chat_message(chat.prompt, is_human=True)
             with col_totals:
                 sh.display_totals(
                     cost=chat.cost,
                     total_tokens=chat.total_tokens,
                     prompt_tokens=chat.prompt_tokens,
-                    completion_tokens=chat.completion_tokens,
+                    completion_tokens=chat.response_tokens,
                     is_total=False,
                 )
 
         # display totals for entire conversation
+        # TODO: need to change this to a chain and track all costs not just message costs
+        # need to display an info icon indicating that non-chat message costs/tokens are not
+        # displayed and so won't match totals
         sh.display_totals(
-            cost=sum(x.cost for x in chat_history),
-            total_tokens=sum(x.total_tokens for x in chat_history),
-            prompt_tokens=sum(x.prompt_tokens for x in chat_history),
-            completion_tokens=sum(x.completion_tokens for x in chat_history),
+            cost=chat_model.cost,
+            total_tokens=chat_model.total_tokens,
+            prompt_tokens=chat_model.prompt_tokens,
+            completion_tokens=chat_model.response_tokens,
             is_total=True,
             placeholder=result_placeholder,
         )
