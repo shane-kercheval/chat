@@ -199,3 +199,4 @@ data/raw/*
 
 !tests/test_files/datasets/*.csv
 !tests/test_files/datasets/*.pkl
+.chroma

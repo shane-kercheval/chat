@@ -7,7 +7,11 @@ from dotenv import load_dotenv
 import streamlit as st
 # from langchain.chat_models import ChatOpenAI
 # from langchain.schema import HumanMessage, AIMessage, SystemMessage
-from llm_chain.base import ChatModel, Chain, Session
+from llm_chain.base import ChatModel, Chain, Session, Value
+from llm_chain.tools import DuckDuckGoSearch, split_documents
+from llm_chain.indexes import ChromaDocumentIndex
+from llm_chain.prompt_templates import DocSearchTemplate
+
 from llm_chain.models import OpenAIChat
 import source.library.streamlit_helpers as sh
 
@@ -52,8 +56,8 @@ def initialize() -> None:
 
 def create_chat_model() -> ChatModel:
     """TODO."""
-    return sh.MockChatModel(model_name='mock')
-    # return OpenAIChat(model_name='gpt-3.5-turbo')
+    # return sh.MockChatModel(model_name='mock')
+    return OpenAIChat(model_name='gpt-3.5-turbo')
 
 def main() -> None:
     """Defines the application structure and behavior."""
@@ -187,7 +191,22 @@ def main() -> None:
             chat_model.model_name = model_name
             chat_model.temperature = temperature
             chat_model.max_tokens = max_tokens
-            links = [chat_model]
+            if use_web_search:
+                document_index = ChromaDocumentIndex(n_results=3)
+                question_1 = Value()
+                links = [
+                    question_1,
+                    DuckDuckGoSearch(top_n=3),
+                    sh.scrape_urls,
+                    split_documents,
+                    document_index,
+                    question_1,
+                    DocSearchTemplate(doc_index=document_index, n_docs=3),
+                    chat_model,
+                ]
+            else:
+                links = [chat_model]
+
             chat_session.append(chain=Chain(links=links))
             chat_session(user_input)
 

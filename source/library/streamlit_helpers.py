@@ -336,3 +336,21 @@ class MockChatModel(ChatModel):
 
 # if __name__ == "__main__":
 #     main()
+
+
+from llm_chain.base import Document
+from llm_chain.tools import scrape_url
+
+# define a function that takes the links from the web-search, scrapes the web-pages,
+# and then creates Document objects from the text of each web-page
+def scrape_urls(search_results: dict) -> list[Document]:
+    """
+    For each url (i.e. `href` in `search_results`):
+    - extracts text
+    - replace new-lines with spaces
+    - create a Document object
+    """
+    return [
+        Document(content=scrape_url(x['href']).replace('\n', ' '))
+        for x in search_results
+    ]
