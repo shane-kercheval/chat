@@ -262,9 +262,11 @@ def _create_mock_message() -> str:
 class MockChatModel(ChatModel):
     """TODO."""
 
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, temperature: float = 0, max_records: int = 0):
         super().__init__()
         self.model_name = model_name
+        self.temperature = temperature
+        self.max_records = max_records
 
     def _run(self, prompt: str) -> MessageRecord:
         return MessageRecord(

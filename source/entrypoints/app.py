@@ -5,9 +5,9 @@ templates.
 import os
 from dotenv import load_dotenv
 import streamlit as st
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
-from llm_chain.base import ChatModel
+# from langchain.chat_models import ChatOpenAI
+# from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from llm_chain.base import ChatModel, Chain, Session
 from llm_chain.models import OpenAIChat
 import source.library.streamlit_helpers as sh
 
@@ -60,8 +60,8 @@ def main() -> None:
     initialize()
     sh.apply_css()
     message_state = st.session_state.setdefault('state', {'chat_message': ''})
-    if 'chat_model' not in st.session_state:
-        st.session_state.chat_model = create_chat_model()
+    if 'chat_session' not in st.session_state:
+        st.session_state.chat_session = Session()
 
     with st.sidebar:
         st.markdown('# Options')
@@ -157,10 +157,10 @@ def main() -> None:
     with col_clear:
         clear_button = st.button("Clear")
         if clear_button:
-            st.session_state['chat_model'] = create_chat_model()
+            st.session_state['chat_session'] = Session()
 
     sh.display_horizontal_line()
-    chat_model = st.session_state.get('chat_model', create_chat_model())  # TODO...?
+    chat_session = st.session_state.get('chat_session', Session())  # TODO.. is default needed???
 
     if submit_button and user_input:
         # human_message = HumanMessage(content=user_input)
@@ -183,8 +183,13 @@ def main() -> None:
             # response = chat(history)
             # response = AIMessage(content = sh._create_mock_message())
             # st.session_state['chat_message'] = ""
+            chat_model = create_chat_model()
             chat_model.model_name = model_name
-            chat_model(prompt=user_input)
+            chat_model.temperature = temperature
+            chat_model.max_tokens = max_tokens
+            links = [chat_model]
+            chat_session.append(chain=Chain(links=links))
+            chat_session(user_input)
 
         # chat_data = sh.MessageMetaData(
         #     model_name=model_name,
@@ -198,8 +203,8 @@ def main() -> None:
         # message_state['chat_message'] = ''
 
     # display message history
-    if chat_model.history:
-        chat_history = list(reversed(chat_model.history))
+    if chat_session.message_history:
+        chat_history = list(reversed(chat_session.message_history))
         for chat in chat_history:
             col_messages, col_totals = st.columns([5, 1])
             with col_messages:
@@ -219,10 +224,10 @@ def main() -> None:
         # need to display an info icon indicating that non-chat message costs/tokens are not
         # displayed and so won't match totals
         sh.display_totals(
-            cost=chat_model.cost,
-            total_tokens=chat_model.total_tokens,
-            prompt_tokens=chat_model.prompt_tokens,
-            completion_tokens=chat_model.response_tokens,
+            cost=chat_session.cost,
+            total_tokens=chat_session.total_tokens,
+            prompt_tokens=0,  # TODO: should we add this to Session/Chain? or does it make sense to display  # noqa
+            completion_tokens=0,  # TODO: should we add this to Session/Chain? or does it make sense to display # noqa
             is_total=True,
             placeholder=result_placeholder,
         )
