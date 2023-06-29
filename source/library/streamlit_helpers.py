@@ -1,6 +1,7 @@
 """Helper functions for streamlit app."""
 # from functools import cache
 import re
+from typing import Any
 # from pydantic import BaseModel, constr
 import streamlit as st
 # from langchain.schema import BaseMessage, SystemMessage, HumanMessage, AIMessage
@@ -146,13 +147,14 @@ def display_horizontal_line(margin: str = '10px 0px 30px 0px') -> None:
     st.markdown(css + "<div class='line'></div>", unsafe_allow_html=True)
 
 
-def display_chat_message(message: str, is_human: bool) -> None:
+def display_chat_message(message: str, is_human: bool, placeholder: Any | None = None) -> None:
     """
     Displays a chat message and formats according to whether or not the message is from a human.
 
     Args:
         message: the message to display
         is_human: True if the message is from a human; False if message is OpenAI response
+        placeholder: TODO
     """
     # col1, col2 = st.columns([1, 25])
     # with col1:
@@ -160,7 +162,11 @@ def display_chat_message(message: str, is_human: bool) -> None:
     #     st.markdown(f"<div class='emoji'>{sender_emoji}</div>", unsafe_allow_html=True)
     # with col2:
     sender_class = 'sender' if is_human else 'receiver'
-    st.markdown(f"<div class='{sender_class}'>{message}</div>", unsafe_allow_html=True)
+    if placeholder:
+        placeholder.empty()
+        placeholder.markdown(f"<div class='{sender_class}'>{message}</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div class='{sender_class}'>{message}</div>", unsafe_allow_html=True)
 
 def create_prompt_template_options(templates: dict) -> None:
     """Returns a drop-down widget with prompt templates."""

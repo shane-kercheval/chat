@@ -33,7 +33,10 @@ st.set_page_config(
 def create_chat_model() -> ChatModel:
     """TODO."""
     # return sh.MockChatModel(model_name='mock')
-    return OpenAIChat(model_name='gpt-3.5-turbo')
+    return OpenAIChat(
+        model_name='gpt-3.5-turbo',
+        # streaming_callback=lambda x: st.write(x.response),
+    )
 
 @st.cache_data
 def load_prompt_templates() -> dict:
@@ -173,10 +176,53 @@ def main() -> None:
     sh.display_horizontal_line()
     chat_session = st.session_state.get('chat_session', Session())  # TODO.. is default needed???
 
+
+    # display message history
+    ##### history at point before we hit submit
+    if submit_button and user_input:
+        col_messages, col_totals = st.columns([5, 1])
+        with col_messages:
+            placeholder_response = st.empty()
+            placeholder_prompt = st.empty()
+
+
+
+    if chat_session.message_history:
+        chat_history = list(reversed(chat_session.message_history))
+        for chat in chat_history:
+            col_messages, col_totals = st.columns([5, 1])
+            with col_messages:
+                sh.display_chat_message(chat.response, is_human=False)
+                sh.display_chat_message(chat.prompt, is_human=True)
+            with col_totals:
+                sh.display_totals(
+                    cost=chat.cost,
+                    total_tokens=chat.total_tokens,
+                    prompt_tokens=chat.prompt_tokens,
+                    response_tokens=chat.response_tokens,
+                    is_total=False,
+                )
+
+        # display totals for entire conversation
+        # TODO: need to change this to a chain and track all costs not just message costs
+        # need to display an info icon indicating that non-chat message costs/tokens are not
+        # displayed and so won't match totals
+        sh.display_totals(
+            cost=chat_session.cost,
+            total_tokens=chat_session.total_tokens,
+            prompt_tokens=chat_session.prompt_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display  # noqa
+            response_tokens=chat_session.response_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display # noqa
+            is_total=True,
+            placeholder=result_placeholder,
+        )
+
     if submit_button and user_input:
         # human_message = HumanMessage(content=user_input)
         # chat_model.message_chain.append(human_message)
+        # prompt_placeholder = st.empty()
         with st.spinner("Thinking..."):
+            # sh.display_chat_message('TBD', is_human=False)
+            # sh.display_chat_message(user_input, is_human=True)
             # TODO: need to set this in teh model
             if openai_model_name == 'GPT-3.5':
                 model_name = 'gpt-3.5-turbo'
@@ -198,6 +244,20 @@ def main() -> None:
             chat_model.model_name = model_name
             chat_model.temperature = temperature
             chat_model.max_tokens = max_tokens
+            # chat_model._streaming_callback = lambda x: st.markdown(f'<script>document.getElementById("{div_id}").innerHTML += "{x.response}";</script>', unsafe_allow_html=True)
+            # chat_model._streaming_callback = lambda x: st.write(f'{div_id} - {x.response}', unsafe_allow_html=True)
+            from llm_chain.models import StreamingRecord
+            sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
+            message = ""
+            def temp(x: StreamingRecord):
+                nonlocal message
+                message += x.response
+                sh.display_chat_message(message, is_human=False, placeholder=placeholder_response)
+                # placeholder_asdf.empty()
+                # placeholder_asdf.write(x.response)
+                # sh.display_chat_message(div_id, is_human=False, div_id=div_id)
+            chat_model._streaming_callback = temp
+
             # ddg_search = DuckDuckGoSearch(top_n=3)
             # use_web_search = tool_selection == 'Use Web-search (DuckDuckGo)'
             # use_stack_overflow = tool_selection == 'Use Stack Overflow'
@@ -232,7 +292,13 @@ def main() -> None:
                 links = [chat_model]
 
             chat_session.append(chain=Chain(links=links))
-            chat_session(user_input)
+            response = chat_session(user_input)
+            # st.write(response)
+            # st.markdown(
+            #     f'<script>document.getElementById("{div_id}").innerHTML += "{response}";</script>',
+            #     unsafe_allow_html=True,
+            # )
+
 
             # if use_web_search:
             #     print(ddg_search.history[0])
@@ -248,35 +314,6 @@ def main() -> None:
         # message_state['chat_message'] = user_input  # Update session state value
         # message_state['chat_message'] = ''
 
-    # display message history
-    if chat_session.message_history:
-        chat_history = list(reversed(chat_session.message_history))
-        for chat in chat_history:
-            col_messages, col_totals = st.columns([5, 1])
-            with col_messages:
-                sh.display_chat_message(chat.response, is_human=False)
-                sh.display_chat_message(chat.prompt, is_human=True)
-            with col_totals:
-                sh.display_totals(
-                    cost=chat.cost,
-                    total_tokens=chat.total_tokens,
-                    prompt_tokens=chat.prompt_tokens,
-                    response_tokens=chat.response_tokens,
-                    is_total=False,
-                )
-
-        # display totals for entire conversation
-        # TODO: need to change this to a chain and track all costs not just message costs
-        # need to display an info icon indicating that non-chat message costs/tokens are not
-        # displayed and so won't match totals
-        sh.display_totals(
-            cost=chat_session.cost,
-            total_tokens=chat_session.total_tokens,
-            prompt_tokens=chat_session.prompt_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display  # noqa
-            response_tokens=chat_session.response_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display # noqa
-            is_total=True,
-            placeholder=result_placeholder,
-        )
 
     print("--------------END----------ddddd----")
 
