@@ -8,7 +8,7 @@ import streamlit as st
 # from langchain.chat_models import ChatOpenAI
 # from langchain.schema import HumanMessage, AIMessage, SystemMessage
 from llm_chain.base import ChatModel, Chain, Session, Value
-from llm_chain.tools import DuckDuckGoSearch, split_documents
+from llm_chain.tools import DuckDuckGoSearch, split_documents, search_stack_overflow
 from llm_chain.indexes import ChromaDocumentIndex
 from llm_chain.prompt_templates import DocSearchTemplate
 
@@ -30,6 +30,10 @@ st.set_page_config(
     layout='wide',
 )
 
+def create_chat_model() -> ChatModel:
+    """TODO."""
+    # return sh.MockChatModel(model_name='mock')
+    return OpenAIChat(model_name='gpt-3.5-turbo')
 
 @st.cache_data
 def load_prompt_templates() -> dict:
@@ -52,12 +56,6 @@ def initialize() -> None:
     # Load the OpenAI API key from the environment variable
     load_dotenv()
     assert os.getenv("OPENAI_API_KEY")
-
-
-def create_chat_model() -> ChatModel:
-    """TODO."""
-    # return sh.MockChatModel(model_name='mock')
-    return OpenAIChat(model_name='gpt-3.5-turbo')
 
 def main() -> None:
     """Defines the application structure and behavior."""
@@ -119,16 +117,16 @@ def main() -> None:
             st.markdown('### Template:')
             st.sidebar.text(prompt_template)
 
-        st.markdown("# Tools")
-        tool_names = [
-            'Summarize PDF',
-            'Summarize URL (Single Page)',
-            'Agents??',
-        ]
-        template_name = st.selectbox(
-            '<label should be hidden>',
-            ['<Select>'] + tool_names,
-        )
+        # st.markdown("# Tools")
+        # tool_names = [
+        #     'Summarize PDF',
+        #     'Summarize URL (Single Page)',
+        #     'Agents??',
+        # ]
+        # template_name = st.selectbox(
+        #     '<label should be hidden>',
+        #     ['<Select>'] + tool_names,
+        # )
 
         # st.markdown("# History")
         # conversation_history = sh._create_mock_history(num_history=5)
@@ -152,11 +150,20 @@ def main() -> None:
     with col_submit:
         submit_button = st.button("Submit")
 
+    # with col_search:
+    #     tool_names = [
+    #         '<Select an optional tool>',
+    #         'Use Web-search (DuckDuckGo)',
+    #         'Use Stack Overflow',
+    #         'Summarize URL (Single Page) (TBD)',
+    #         'Summarize PDF (TBD)',
+    #         'Agents?? (TBD)',
+    #     ]
+    #     tool_selection = st.selectbox('<should not see this label>', tool_names)
     with col_search:
         use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
     with col_stack:
         use_stack_overflow = st.checkbox(label="Use Stack Overflow", value=False)
-
 
     with col_clear:
         clear_button = st.button("Clear")
@@ -191,15 +198,32 @@ def main() -> None:
             chat_model.model_name = model_name
             chat_model.temperature = temperature
             chat_model.max_tokens = max_tokens
-            if use_web_search:
+            # ddg_search = DuckDuckGoSearch(top_n=3)
+            # use_web_search = tool_selection == 'Use Web-search (DuckDuckGo)'
+            # use_stack_overflow = tool_selection == 'Use Stack Overflow'
+            if use_web_search or use_stack_overflow:
                 document_index = ChromaDocumentIndex(n_results=3)
                 question_1 = Value()
-                links = [
-                    question_1,
-                    DuckDuckGoSearch(top_n=3),
-                    sh.scrape_urls,
-                    split_documents,
-                    document_index,
+                links = []
+                if use_web_search:
+                    links += [
+                        question_1,
+                        DuckDuckGoSearch(top_n=3),  # get the urls of the top search results
+                        sh.scrape_urls,  # scrape the websites corresponding to the URLs
+                        lambda docs: split_documents(docs=docs, max_chars=1_000),
+                        document_index,  # add docs to doc-index
+                    ]
+                if use_stack_overflow:
+                    links += [
+                        question_1,
+                        lambda search_query: search_stack_overflow(query=search_query, max_questions=2, max_answers=1),  # noqa
+                        sh.stack_overflow_results_to_docs,
+                        # we almost certainly want to keep the entire answer
+                        lambda docs: split_documents(docs=docs, max_chars=2_500),
+                        document_index,  # add docs to doc-index
+                    ]
+
+                links += [
                     question_1,
                     DocSearchTemplate(doc_index=document_index, n_docs=3),
                     chat_model,
@@ -209,6 +233,9 @@ def main() -> None:
 
             chat_session.append(chain=Chain(links=links))
             chat_session(user_input)
+
+            # if use_web_search:
+            #     print(ddg_search.history[0])
 
         # chat_data = sh.MessageMetaData(
         #     model_name=model_name,
@@ -234,7 +261,7 @@ def main() -> None:
                     cost=chat.cost,
                     total_tokens=chat.total_tokens,
                     prompt_tokens=chat.prompt_tokens,
-                    completion_tokens=chat.response_tokens,
+                    response_tokens=chat.response_tokens,
                     is_total=False,
                 )
 
@@ -245,13 +272,13 @@ def main() -> None:
         sh.display_totals(
             cost=chat_session.cost,
             total_tokens=chat_session.total_tokens,
-            prompt_tokens=0,  # TODO: should we add this to Session/Chain? or does it make sense to display  # noqa
-            completion_tokens=0,  # TODO: should we add this to Session/Chain? or does it make sense to display # noqa
+            prompt_tokens=chat_session.prompt_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display  # noqa
+            response_tokens=chat_session.response_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display # noqa
             is_total=True,
             placeholder=result_placeholder,
         )
 
-    print("--------------END--------------")
+    print("--------------END----------ddddd----")
 
 if __name__ == '__main__':
     main()

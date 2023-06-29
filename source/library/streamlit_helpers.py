@@ -1,20 +1,21 @@
 """Helper functions for streamlit app."""
-from functools import cache
+# from functools import cache
 import re
 # from pydantic import BaseModel, constr
 import streamlit as st
 # from langchain.schema import BaseMessage, SystemMessage, HumanMessage, AIMessage
 # from langchain.callbacks.openai_info import MODEL_COST_PER_1K_TOKENS
-import tiktoken
+# import tiktoken
+from llm_chain.tools import StackQuestion
 
 
 from llm_chain.base import ChatModel, MessageRecord
 
 
-@cache
-def get_tiktok_encoding(model: str) -> tiktoken.Encoding:
-    """Helper function that returns an encoding method for a given model."""
-    return tiktoken.encoding_for_model(model)
+# @cache
+# def get_tiktok_encoding(model: str) -> tiktoken.Encoding:
+#     """Helper function that returns an encoding method for a given model."""
+#     return tiktoken.encoding_for_model(model)
 
 
 # class MessageMetaData(BaseModel):
@@ -30,7 +31,7 @@ def get_tiktok_encoding(model: str) -> tiktoken.Encoding:
 #     full_question: str
 #     ai_response: AIMessage
 #     prompt_tokens: int | None = None
-#     completion_tokens: int | None = None
+#     response_tokens: int | None = None
 #     total_tokens: int | None = None
 #     cost: float | None = None
 
@@ -43,8 +44,8 @@ def get_tiktok_encoding(model: str) -> tiktoken.Encoding:
 
 #         if not self.prompt_tokens:
 #             self.prompt_tokens = len(encoding.encode(self.full_question))
-#             self.completion_tokens = len(encoding.encode(self.ai_response.content))
-#             self.total_tokens = self.prompt_tokens + self.completion_tokens
+#             self.response_tokens = len(encoding.encode(self.ai_response.content))
+#             self.total_tokens = self.prompt_tokens + self.response_tokens
 #             self.cost = MODEL_COST_PER_1K_TOKENS[self.model_name] * (self.total_tokens / 1_000)
 
 
@@ -112,9 +113,11 @@ def apply_css() -> None:
     </style>
     """
      # Add custom CSS to hide the label of the prompt-template selection box in the sidebar
+     # use the following if we only want to hide the label in the sidebar:
+     # `section[data-testid="stSidebar"] .stSelectbox label {`
     css += """
     <style>
-    section[data-testid="stSidebar"] .stSelectbox label {
+    .stSelectbox label {
         display: none;
     }
     </style>
@@ -191,7 +194,7 @@ def display_totals(
         cost: float,
         total_tokens: int,
         prompt_tokens: int,
-        completion_tokens: int,
+        response_tokens: int,
         is_total: bool,
         placeholder: object | None = None) -> None:
     """
@@ -201,7 +204,7 @@ def display_totals(
         cost: cost of all tokens
         total_tokens: number of total tokens
         prompt_tokens: number of prompt tokens
-        completion_tokens: number of completion tokens
+        response_tokens: number of completion tokens
         is_total: whether or not the total cost of all conversations, or a single conversation
         placeholder: if not None; use this to write results to
     """
@@ -213,7 +216,7 @@ def display_totals(
     token_string = f"""
     {total_label} Tokens: <code>{total_tokens:,}</code><br>
     Prompt Tokens: <code>{prompt_tokens:,}</code><br>
-    Completion Tokens: <code>{completion_tokens:,}</code><br>
+    Response Tokens: <code>{response_tokens:,}</code><br>
     """
     cost_html = f"""
     <p style="font-size: 13px; text-align: right">{cost_string}</p>
@@ -351,6 +354,15 @@ def scrape_urls(search_results: dict) -> list[Document]:
     - create a Document object
     """
     return [
-        Document(content=scrape_url(x['href']).replace('\n', ' '))
+        Document(content=re.sub(r'\s+', ' ', scrape_url(x['href'])))
         for x in search_results
     ]
+
+def stack_overflow_results_to_docs(results: list[StackQuestion]) -> list[Document]:
+    """TODO."""
+    answers = []
+    for question in results:
+        for answer in question.answers:
+            f"{question.title[0:100]} - {answer.markdown}"
+            answers.append(f"{question.title[0:100]}")
+    return [Document(content=x) for x in answers]
