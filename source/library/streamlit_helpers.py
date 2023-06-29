@@ -156,11 +156,6 @@ def display_chat_message(message: str, is_human: bool, placeholder: Any | None =
         is_human: True if the message is from a human; False if message is OpenAI response
         placeholder: TODO
     """
-    # col1, col2 = st.columns([1, 25])
-    # with col1:
-    #     sender_emoji = "👨‍💼" if is_human else "🤖"
-    #     st.markdown(f"<div class='emoji'>{sender_emoji}</div>", unsafe_allow_html=True)
-    # with col2:
     sender_class = 'sender' if is_human else 'receiver'
     if placeholder:
         placeholder.empty()

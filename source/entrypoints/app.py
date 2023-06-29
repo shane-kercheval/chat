@@ -120,21 +120,6 @@ def main() -> None:
             st.markdown('### Template:')
             st.sidebar.text(prompt_template)
 
-        # st.markdown("# Tools")
-        # tool_names = [
-        #     'Summarize PDF',
-        #     'Summarize URL (Single Page)',
-        #     'Agents??',
-        # ]
-        # template_name = st.selectbox(
-        #     '<label should be hidden>',
-        #     ['<Select>'] + tool_names,
-        # )
-
-        # st.markdown("# History")
-        # conversation_history = sh._create_mock_history(num_history=5)
-        # first_messages = [x.message_chain[1].content[0:40] for x in conversation_history]
-        # st.radio("history", first_messages)
 
     # display the chat text_area and total cost side-by-side
     col_craft_message, col_conversation_totals = st.columns([5, 1])
@@ -153,16 +138,7 @@ def main() -> None:
     with col_submit:
         submit_button = st.button("Submit")
 
-    # with col_search:
-    #     tool_names = [
-    #         '<Select an optional tool>',
-    #         'Use Web-search (DuckDuckGo)',
-    #         'Use Stack Overflow',
-    #         'Summarize URL (Single Page) (TBD)',
-    #         'Summarize PDF (TBD)',
-    #         'Agents?? (TBD)',
-    #     ]
-    #     tool_selection = st.selectbox('<should not see this label>', tool_names)
+
     with col_search:
         use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
     with col_stack:
@@ -176,17 +152,16 @@ def main() -> None:
     sh.display_horizontal_line()
     chat_session = st.session_state.get('chat_session', Session())  # TODO.. is default needed???
 
-
-    # display message history
-    ##### history at point before we hit submit
+    # placeholders for the next submissions
     if submit_button and user_input:
         col_messages, col_totals = st.columns([5, 1])
         with col_messages:
             placeholder_response = st.empty()
             placeholder_prompt = st.empty()
+        with col_totals:
+            placeholder_message_totals = st.empty()
 
-
-
+    # display previous history: i.e. history at point before we hit submit
     if chat_session.message_history:
         chat_history = list(reversed(chat_session.message_history))
         for chat in chat_history:
@@ -203,18 +178,6 @@ def main() -> None:
                     is_total=False,
                 )
 
-        # display totals for entire conversation
-        # TODO: need to change this to a chain and track all costs not just message costs
-        # need to display an info icon indicating that non-chat message costs/tokens are not
-        # displayed and so won't match totals
-        sh.display_totals(
-            cost=chat_session.cost,
-            total_tokens=chat_session.total_tokens,
-            prompt_tokens=chat_session.prompt_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display  # noqa
-            response_tokens=chat_session.response_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display # noqa
-            is_total=True,
-            placeholder=result_placeholder,
-        )
 
     if submit_button and user_input:
         # human_message = HumanMessage(content=user_input)
@@ -292,16 +255,38 @@ def main() -> None:
                 links = [chat_model]
 
             chat_session.append(chain=Chain(links=links))
-            response = chat_session(user_input)
+            chat_session(user_input)
+            last_message = chat_session.message_history[-1]
+            sh.display_totals(
+                cost=last_message.cost,
+                total_tokens=last_message.total_tokens,
+                prompt_tokens=last_message.prompt_tokens,
+                response_tokens=last_message.response_tokens,
+                is_total=False,
+                placeholder=placeholder_message_totals
+            )
             # st.write(response)
             # st.markdown(
             #     f'<script>document.getElementById("{div_id}").innerHTML += "{response}";</script>',
             #     unsafe_allow_html=True,
             # )
 
-
             # if use_web_search:
             #     print(ddg_search.history[0])
+        
+        # display totals for entire conversation; need to do this after we are done with the last
+        # submission
+        # TODO: need to change this to a chain and track all costs not just message costs
+        # need to display an info icon indicating that non-chat message costs/tokens are not
+        # displayed and so won't match totals
+        sh.display_totals(
+            cost=chat_session.cost,
+            total_tokens=chat_session.total_tokens,
+            prompt_tokens=chat_session.prompt_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display  # noqa
+            response_tokens=chat_session.response_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display # noqa
+            is_total=True,
+            placeholder=result_placeholder,
+        )
 
         # chat_data = sh.MessageMetaData(
         #     model_name=model_name,
