@@ -157,43 +157,42 @@ def main() -> None:
         sh.display_message_history(chat_session.message_history)
 
     if submit_button and user_input:
-        with st.spinner("Thinking..."):
-            if openai_model_name == 'GPT-3.5':
-                model_name = 'gpt-3.5-turbo'
-            elif openai_model_name == 'GPT-4':
-                model_name = 'gpt-4'
-            else:
-                raise ValueError(openai_model_name)
+        # with st.spinner("Thinking..."):
+        if openai_model_name == 'GPT-3.5':
+            model_name = 'gpt-3.5-turbo'
+        elif openai_model_name == 'GPT-4':
+            model_name = 'gpt-4'
+        else:
+            raise ValueError(openai_model_name)
 
-            sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
+        sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
 
-            message = ""
-            def _update_message(x: StreamingRecord) -> None:
-                nonlocal message
-                message += x.response
-                sh.display_chat_message(message, is_human=False, placeholder=placeholder_response)
+        message = ""
+        def _update_message(x: StreamingRecord) -> None:
+            nonlocal message
+            message += x.response
+            sh.display_chat_message(message, is_human=False, placeholder=placeholder_response)
 
-            chain = sh.create_chain(
-                chat_model=create_chat_model(),
-                model_name=model_name,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                streaming_callback=_update_message,
-                prompt=user_input,
-                use_web_search=use_web_search,
-                use_stack_overflow=use_stack_overflow,
-            )
-            chat_session.append(chain=chain)
-            chat_session(user_input)
-            last_message = chat_session.message_history[-1]
-            sh.display_totals(
-                cost=last_message.cost,
-                total_tokens=last_message.total_tokens,
-                prompt_tokens=last_message.prompt_tokens,
-                response_tokens=last_message.response_tokens,
-                is_total=False,
-                placeholder=placeholder_message_totals,
-            )
+        chain = sh.build_chain(
+            chat_model=create_chat_model(),
+            model_name=model_name,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            streaming_callback=_update_message,
+            use_web_search=use_web_search,
+            use_stack_overflow=use_stack_overflow,
+        )
+        chat_session.append(chain=chain)
+        chat_session(user_input)
+        last_message = chat_session.message_history[-1]
+        sh.display_totals(
+            cost=last_message.cost,
+            total_tokens=last_message.total_tokens,
+            prompt_tokens=last_message.prompt_tokens,
+            response_tokens=last_message.response_tokens,
+            is_total=False,
+            placeholder=placeholder_message_totals,
+        )
 
         # display totals for entire conversation; need to do this after we are done with the last
         # submission

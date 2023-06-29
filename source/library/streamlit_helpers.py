@@ -247,13 +247,12 @@ def stack_overflow_results_to_docs(results: list[StackQuestion]) -> list[Documen
     return [Document(content=x) for x in answers]
 
 
-def create_chain(
+def build_chain(
         chat_model: OpenAIChat,
         model_name: str,
         max_tokens: int,
         temperature: float,
         streaming_callback: Callable[[StreamingRecord], None],
-        prompt: str,
         use_web_search: bool,
         use_stack_overflow: bool,
         ) -> Chain:
