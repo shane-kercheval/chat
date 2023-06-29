@@ -5,8 +5,6 @@ templates.
 import os
 from dotenv import load_dotenv
 import streamlit as st
-# from langchain.chat_models import ChatOpenAI
-# from langchain.schema import HumanMessage, AIMessage, SystemMessage
 from llm_chain.base import ChatModel, Chain, Session, Value
 from llm_chain.tools import DuckDuckGoSearch, split_documents, search_stack_overflow
 from llm_chain.indexes import ChromaDocumentIndex
@@ -33,10 +31,7 @@ st.set_page_config(
 def create_chat_model() -> ChatModel:
     """TODO."""
     # return sh.MockChatModel(model_name='mock')
-    return OpenAIChat(
-        model_name='gpt-3.5-turbo',
-        # streaming_callback=lambda x: st.write(x.response),
-    )
+    return OpenAIChat(model_name='gpt-3.5-turbo')
 
 @st.cache_data
 def load_prompt_templates() -> dict:
@@ -71,8 +66,6 @@ def main() -> None:
     with st.sidebar:
         st.markdown('# Options')
         openai_model_name = st.selectbox(label="Model", options=('GPT-3.5', 'GPT-4'))
-        # use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
-        # use_stack_overflow = st.checkbox(label="Use Stack Overflow", value=False)
 
         with st.expander("Additional Options"):
             temperature = st.slider(
@@ -137,13 +130,10 @@ def main() -> None:
     col_submit,  col_search, col_stack, col_clear =  st.columns([2, 4, 4, 2])
     with col_submit:
         submit_button = st.button("Submit")
-
-
     with col_search:
         use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
     with col_stack:
         use_stack_overflow = st.checkbox(label="Use Stack Overflow", value=False)
-
     with col_clear:
         clear_button = st.button("Clear")
         if clear_button:
@@ -153,6 +143,7 @@ def main() -> None:
     chat_session = st.session_state.get('chat_session', Session())  # TODO.. is default needed???
 
     # placeholders for the next submissions
+    # TODO: if i select a different model under Options, the totals for all messages disappears
     if submit_button and user_input:
         col_messages, col_totals = st.columns([5, 1])
         with col_messages:
@@ -180,13 +171,7 @@ def main() -> None:
 
 
     if submit_button and user_input:
-        # human_message = HumanMessage(content=user_input)
-        # chat_model.message_chain.append(human_message)
-        # prompt_placeholder = st.empty()
         with st.spinner("Thinking..."):
-            # sh.display_chat_message('TBD', is_human=False)
-            # sh.display_chat_message(user_input, is_human=True)
-            # TODO: need to set this in teh model
             if openai_model_name == 'GPT-3.5':
                 model_name = 'gpt-3.5-turbo'
             elif openai_model_name == 'GPT-4':
@@ -196,19 +181,11 @@ def main() -> None:
 
             print(f"Calling ChatGPT: model={model_name}; temp={temperature}; max_tokens={max_tokens}")  # noqa
 
-            # chat = ChatOpenAI(model=model_name, temperature=temperature, max_tokens=max_tokens)
-            # TODO: pass all messages and/or figure out memory buffer strategy
-            # history = [chat_model.message_chain[0]] + [chat_model.message_chain[-1]]
-            # print("history: " + str(history))
-            # response = chat(history)
-            # response = AIMessage(content = sh._create_mock_message())
-            # st.session_state['chat_message'] = ""
             chat_model = create_chat_model()
             chat_model.model_name = model_name
             chat_model.temperature = temperature
             chat_model.max_tokens = max_tokens
-            # chat_model._streaming_callback = lambda x: st.markdown(f'<script>document.getElementById("{div_id}").innerHTML += "{x.response}";</script>', unsafe_allow_html=True)
-            # chat_model._streaming_callback = lambda x: st.write(f'{div_id} - {x.response}', unsafe_allow_html=True)
+            # TODO: chat_model.memory_strategy
             from llm_chain.models import StreamingRecord
             sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
             message = ""
@@ -219,7 +196,7 @@ def main() -> None:
                 # placeholder_asdf.empty()
                 # placeholder_asdf.write(x.response)
                 # sh.display_chat_message(div_id, is_human=False, div_id=div_id)
-            chat_model._streaming_callback = temp
+            chat_model.streaming_callback = temp
 
             # ddg_search = DuckDuckGoSearch(top_n=3)
             # use_web_search = tool_selection == 'Use Web-search (DuckDuckGo)'
@@ -257,6 +234,7 @@ def main() -> None:
             chat_session.append(chain=Chain(links=links))
             chat_session(user_input)
             last_message = chat_session.message_history[-1]
+            st.write(f"{model_name}: ${chat_model.cost}")
             sh.display_totals(
                 cost=last_message.cost,
                 total_tokens=last_message.total_tokens,
