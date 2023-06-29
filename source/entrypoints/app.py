@@ -54,14 +54,14 @@ def initialize() -> None:
     # Load the OpenAI API key from the environment variable
     load_dotenv()
     assert os.getenv("OPENAI_API_KEY")
+    sh.apply_css()
+    if 'chat_session' not in st.session_state:
+        st.session_state.chat_session = Session()
 
 def main() -> None:
     """Defines the application structure and behavior."""
     initialize()
-    sh.apply_css()
     message_state = st.session_state.setdefault('state', {'chat_message': ''})
-    if 'chat_session' not in st.session_state:
-        st.session_state.chat_session = Session()
 
     with st.sidebar:
         st.markdown('# Options')
@@ -169,7 +169,6 @@ def main() -> None:
                     is_total=False,
                 )
 
-
     if submit_button and user_input:
         with st.spinner("Thinking..."):
             if openai_model_name == 'GPT-3.5':
@@ -179,8 +178,6 @@ def main() -> None:
             else:
                 raise ValueError(openai_model_name)
 
-            print(f"Calling ChatGPT: model={model_name}; temp={temperature}; max_tokens={max_tokens}")  # noqa
-
             chat_model = create_chat_model()
             chat_model.model_name = model_name
             chat_model.temperature = temperature
@@ -188,26 +185,23 @@ def main() -> None:
             # TODO: chat_model.memory_strategy
             from llm_chain.models import StreamingRecord
             sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
+
             message = ""
-            def temp(x: StreamingRecord):
+            def _update_message(x: StreamingRecord) -> None:
                 nonlocal message
                 message += x.response
                 sh.display_chat_message(message, is_human=False, placeholder=placeholder_response)
-                # placeholder_asdf.empty()
-                # placeholder_asdf.write(x.response)
-                # sh.display_chat_message(div_id, is_human=False, div_id=div_id)
-            chat_model.streaming_callback = temp
+            chat_model.streaming_callback = _update_message
 
-            # ddg_search = DuckDuckGoSearch(top_n=3)
-            # use_web_search = tool_selection == 'Use Web-search (DuckDuckGo)'
-            # use_stack_overflow = tool_selection == 'Use Stack Overflow'
             if use_web_search or use_stack_overflow:
                 document_index = ChromaDocumentIndex(n_results=3)
-                question_1 = Value()
+                # Value is a callable; when called with a value it caches and returns the value
+                # when called without a value
+                prompt_cache = Value()
                 links = []
                 if use_web_search:
                     links += [
-                        question_1,
+                        prompt_cache,  # input is user's question; caches and returns
                         DuckDuckGoSearch(top_n=3),  # get the urls of the top search results
                         sh.scrape_urls,  # scrape the websites corresponding to the URLs
                         lambda docs: split_documents(docs=docs, max_chars=1_000),
@@ -215,7 +209,13 @@ def main() -> None:
                     ]
                 if use_stack_overflow:
                     links += [
-                        question_1,
+                        # if use_web_search is false, the original question will get passed in
+                        # to prompt_cache which will cache and return it;
+                        # if use_web_search is true, then prompt_cache will have already been set
+                        # and document_index will return None, so prompt_cache will return the
+                        # previously cached value (i.e. the original question) and pass that to
+                        # the search_query
+                        prompt_cache,
                         lambda search_query: search_stack_overflow(query=search_query, max_questions=2, max_answers=1),  # noqa
                         sh.stack_overflow_results_to_docs,
                         # we almost certainly want to keep the entire answer
@@ -224,7 +224,7 @@ def main() -> None:
                     ]
 
                 links += [
-                    question_1,
+                    prompt_cache,
                     DocSearchTemplate(doc_index=document_index, n_docs=3),
                     chat_model,
                 ]
@@ -234,24 +234,15 @@ def main() -> None:
             chat_session.append(chain=Chain(links=links))
             chat_session(user_input)
             last_message = chat_session.message_history[-1]
-            st.write(f"{model_name}: ${chat_model.cost}")
             sh.display_totals(
                 cost=last_message.cost,
                 total_tokens=last_message.total_tokens,
                 prompt_tokens=last_message.prompt_tokens,
                 response_tokens=last_message.response_tokens,
                 is_total=False,
-                placeholder=placeholder_message_totals
+                placeholder=placeholder_message_totals,
             )
-            # st.write(response)
-            # st.markdown(
-            #     f'<script>document.getElementById("{div_id}").innerHTML += "{response}";</script>',
-            #     unsafe_allow_html=True,
-            # )
 
-            # if use_web_search:
-            #     print(ddg_search.history[0])
-        
         # display totals for entire conversation; need to do this after we are done with the last
         # submission
         # TODO: need to change this to a chain and track all costs not just message costs
@@ -266,19 +257,6 @@ def main() -> None:
             placeholder=result_placeholder,
         )
 
-        # chat_data = sh.MessageMetaData(
-        #     model_name=model_name,
-        #     human_question=human_message,
-        #     full_question=' '.join([x.content for x in history]),
-        #     ai_response=response,
-        # )
-        # chat_model.chat_history.append(chat_data)
-        # chat_model.message_chain.append(response)
-        # message_state['chat_message'] = user_input  # Update session state value
-        # message_state['chat_message'] = ''
-
-
-    print("--------------END----------ddddd----")
 
 if __name__ == '__main__':
     main()
