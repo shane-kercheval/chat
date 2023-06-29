@@ -1,67 +1,14 @@
 """Helper functions for streamlit app."""
 # from functools import cache
 import re
-from typing import Any
-# from pydantic import BaseModel, constr
+from typing import Any, Callable
 import streamlit as st
-# from langchain.schema import BaseMessage, SystemMessage, HumanMessage, AIMessage
-# from langchain.callbacks.openai_info import MODEL_COST_PER_1K_TOKENS
-# import tiktoken
-from llm_chain.tools import StackQuestion
-
-
-from llm_chain.base import ChatModel, MessageRecord
-
-
-# @cache
-# def get_tiktok_encoding(model: str) -> tiktoken.Encoding:
-#     """Helper function that returns an encoding method for a given model."""
-#     return tiktoken.encoding_for_model(model)
-
-
-# class MessageMetaData(BaseModel):
-#     """
-#     full_question is the question and any history or prompt template that langchain sent.
-#     If tokens/cost is not provided, they will be calculated.
-#     prompt_history is not necessarily the same thing as all history. It is the history used in
-#     the prompt, but not all history is necessarily used.
-#     """
-
-#     model_name: constr(strip_whitespace=True, regex=r'^(gpt-3\.5-turbo|gpt-4)$')
-#     human_question: HumanMessage
-#     full_question: str
-#     ai_response: AIMessage
-#     prompt_tokens: int | None = None
-#     response_tokens: int | None = None
-#     total_tokens: int | None = None
-#     cost: float | None = None
-
-#     # This method will be called after the class is created
-#     # and will calculate the value of prompt_tokens if it wasn't supplied
-#     # by the user
-#     def __init__(self, **data):  # noqa: ANN003
-#         super().__init__(**data)
-#         encoding = get_tiktok_encoding(model=self.model_name)
-
-#         if not self.prompt_tokens:
-#             self.prompt_tokens = len(encoding.encode(self.full_question))
-#             self.response_tokens = len(encoding.encode(self.ai_response.content))
-#             self.total_tokens = self.prompt_tokens + self.response_tokens
-#             self.cost = MODEL_COST_PER_1K_TOKENS[self.model_name] * (self.total_tokens / 1_000)
-
-
-# class ChatConversation(BaseModel):
-#     """
-#     We have to differentiate between the entire message chain/history of the conversation
-#     (including the SystemMessage) and the history used for any given chat message (which may be a
-#     subset of that history) and the corresponding metadata of the message (# of tokens, cost)
-#     In other words, we can't regenerate the cost based on the entire list of messages
-#     because that doesn't show the entire prompt/message that was sent to ChatGPT (i.e. it only
-#     shows our question, not the context).
-#     """
-
-#     chat_history: list[MessageMetaData]  # i.e. question/response/costs/tokens
-#     message_chain: list[BaseMessage]  # i.e. each SystemMessage/HumanMessage/AIMessage in history
+from llm_chain.tools import StackQuestion, scrape_url
+from llm_chain.base import ChatModel, MessageRecord, Document, Chain, Value
+from llm_chain.models import OpenAIChat, StreamingRecord
+from llm_chain.tools import DuckDuckGoSearch, split_documents, search_stack_overflow
+from llm_chain.indexes import ChromaDocumentIndex
+from llm_chain.prompt_templates import DocSearchTemplate
 
 
 def apply_css() -> None:
@@ -163,6 +110,25 @@ def display_chat_message(message: str, is_human: bool, placeholder: Any | None =
     else:
         st.markdown(f"<div class='{sender_class}'>{message}</div>", unsafe_allow_html=True)
 
+
+def display_message_history(message_history: list[MessageRecord]) -> None:
+    """TODO."""
+    chat_history = list(reversed(message_history))
+    for chat in chat_history:
+        col_messages, col_totals = st.columns([5, 1])
+        with col_messages:
+            display_chat_message(chat.response, is_human=False)
+            display_chat_message(chat.prompt, is_human=True)
+        with col_totals:
+            display_totals(
+                cost=chat.cost,
+                total_tokens=chat.total_tokens,
+                prompt_tokens=chat.prompt_tokens,
+                response_tokens=chat.response_tokens,
+                is_total=False,
+            )
+
+
 def create_prompt_template_options(templates: dict) -> None:
     """Returns a drop-down widget with prompt templates."""
     template_names = sorted(templates.items(), key=lambda x: (x[1]['category'], x[1]['template']))
@@ -228,33 +194,6 @@ def display_totals(
     else:
         st.markdown(cost_html, unsafe_allow_html=True)
 
-# def _create_mock_message_chain(num_chats: int = 10) -> list[BaseMessage]:
-#     """Returns a mock conversation with ChatGPT."""
-#     message = """
-# This is some python:
-
-# ```
-# def python():
-#     return True
-# ```
-
-# It is code.
-#     """
-#     messages = [SystemMessage(content="You are a helpful assistant.")]
-#     for _ in range(num_chats):
-#         fake_human = _create_mock_message()
-#         fake_ai = _create_mock_message()
-#         messages += [
-#             HumanMessage(content="Question: " + fake_human),
-#             AIMessage(content="Answer: " + fake_ai),
-#         ]
-#     messages += [
-#         HumanMessage(content="Question: " + message),
-#         AIMessage(content="Answer: " + message),
-#     ]
-#     return messages
-
-
 def _create_mock_message() -> str:
     """TBD."""
     import random
@@ -283,68 +222,6 @@ class MockChatModel(ChatModel):
         )
 
 
-# def _create_mock_chat_thread(message_chain: list[BaseMessage]) -> list[MessageMetaData]:
-#     # message_chain = list(reversed(message_chain))
-#     chat_history = []
-#     for i in range(1, len(message_chain), 2):
-#         human_message = message_chain[i]
-#         assert isinstance(human_message, HumanMessage)
-#         ai_message = message_chain[i + 1]
-#         assert isinstance(ai_message, AIMessage)
-#         chat_history.append(MessageMetaData(
-#             model_name='gpt-3.5-turbo',
-#             human_question=human_message,
-#             full_question=human_message.content + "this is some history and context sent in",
-#             ai_response=ai_message,
-#         ))
-#     return chat_history
-
-# def _create_mock_conversation(num_chats: int = 10) -> ChatConversation:
-#     message_chain = _create_mock_message_chain(num_chats=num_chats)
-#     history = _create_mock_chat_thread(message_chain=message_chain)
-#     return ChatConversation(message_chain=message_chain, chat_history=history)
-
-# def _create_mock_history(num_history: int = 10) -> list[ChatConversation]:
-#     return [_create_mock_conversation(num_chats=x) for x in range(num_history)]
-
-
-# import streamlit as st
-
-# def main():
-#     state = st.session_state.setdefault('state', {'text_area_b': ''})
-#     # state = {'text_area_b': ''}
-#     print(state)
-
-#     text_area_a = st.text_area("Enter text for TextArea A")
-#     button_a = st.button("Button A")
-
-#     print(f"text_area_a - 1: `{text_area_a}`")
-#     if button_a:
-#         # Update contents of TextArea B with contents of TextArea A
-#         print("updating state")
-#         state['text_area_b'] = text_area_a
-#         print(f"state: `{state['text_area_b']}`")
-
-#     print(f"state - 2: `{state['text_area_b']}`")
-#     text_area_b = st.text_area("TextArea B", value=state['text_area_b'], key='text_area_b')
-#     print(f"text_area_b - 1: `{text_area_b}`")
-
-#     button_b = st.button("Button B")
-#     if button_b:
-#         print(f"text_area_b - 2: `{text_area_b}`")
-#         st.write("Contents of TextArea B:")
-#         st.write(text_area_b)
-#         state['text_area_b'] = text_area_b  # Update session state value
-
-#     print("-----end------")
-
-# if __name__ == "__main__":
-#     main()
-
-
-from llm_chain.base import Document
-from llm_chain.tools import scrape_url
-
 # define a function that takes the links from the web-search, scrapes the web-pages,
 # and then creates Document objects from the text of each web-page
 def scrape_urls(search_results: dict) -> list[Document]:
@@ -352,12 +229,13 @@ def scrape_urls(search_results: dict) -> list[Document]:
     For each url (i.e. `href` in `search_results`):
     - extracts text
     - replace new-lines with spaces
-    - create a Document object
+    - create a Document object.
     """
     return [
         Document(content=re.sub(r'\s+', ' ', scrape_url(x['href'])))
         for x in search_results
     ]
+
 
 def stack_overflow_results_to_docs(results: list[StackQuestion]) -> list[Document]:
     """TODO."""
@@ -367,3 +245,61 @@ def stack_overflow_results_to_docs(results: list[StackQuestion]) -> list[Documen
             f"{question.title[0:100]} - {answer.markdown}"
             answers.append(f"{question.title[0:100]}")
     return [Document(content=x) for x in answers]
+
+
+def create_chain(
+        chat_model: OpenAIChat,
+        model_name: str,
+        max_tokens: int,
+        temperature: float,
+        streaming_callback: Callable[[StreamingRecord], None],
+        prompt: str,
+        use_web_search: bool,
+        use_stack_overflow: bool,
+        ) -> Chain:
+    """TODO."""
+    chat_model.model_name = model_name
+    chat_model.temperature = temperature
+    chat_model.max_tokens = max_tokens
+    # TODO: chat_model.memory_strategy
+    chat_model.streaming_callback = streaming_callback
+
+    if use_web_search or use_stack_overflow:
+        document_index = ChromaDocumentIndex(n_results=3)
+        # Value is a callable; when called with a value it caches and returns the value
+        # when called without a value
+        prompt_cache = Value()
+        links = []
+        if use_web_search:
+            links += [
+                prompt_cache,  # input is user's question; caches and returns
+                DuckDuckGoSearch(top_n=3),  # get the urls of the top search results
+                scrape_urls,  # scrape the websites corresponding to the URLs
+                lambda docs: split_documents(docs=docs, max_chars=1_000),
+                document_index,  # add docs to doc-index
+            ]
+        if use_stack_overflow:
+            links += [
+                # if use_web_search is false, the original question will get passed in
+                # to prompt_cache which will cache and return it;
+                # if use_web_search is true, then prompt_cache will have already been set
+                # and document_index will return None, so prompt_cache will return the
+                # previously cached value (i.e. the original question) and pass that to
+                # the search_query
+                prompt_cache,
+                lambda search_query: search_stack_overflow(query=search_query, max_questions=2, max_answers=1),  # noqa
+                stack_overflow_results_to_docs,
+                # we almost certainly want to keep the entire answer
+                lambda docs: split_documents(docs=docs, max_chars=2_500),
+                document_index,  # add docs to doc-index
+            ]
+
+        links += [
+            prompt_cache,
+            DocSearchTemplate(doc_index=document_index, n_docs=3),
+            chat_model,
+        ]
+    else:
+        links = [chat_model]
+
+    return Chain(links=links)

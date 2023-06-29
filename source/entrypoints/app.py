@@ -10,7 +10,7 @@ from llm_chain.tools import DuckDuckGoSearch, split_documents, search_stack_over
 from llm_chain.indexes import ChromaDocumentIndex
 from llm_chain.prompt_templates import DocSearchTemplate
 
-from llm_chain.models import OpenAIChat
+from llm_chain.models import OpenAIChat, StreamingRecord
 import source.library.streamlit_helpers as sh
 
 # TODO: document
@@ -154,20 +154,7 @@ def main() -> None:
 
     # display previous history: i.e. history at point before we hit submit
     if chat_session.message_history:
-        chat_history = list(reversed(chat_session.message_history))
-        for chat in chat_history:
-            col_messages, col_totals = st.columns([5, 1])
-            with col_messages:
-                sh.display_chat_message(chat.response, is_human=False)
-                sh.display_chat_message(chat.prompt, is_human=True)
-            with col_totals:
-                sh.display_totals(
-                    cost=chat.cost,
-                    total_tokens=chat.total_tokens,
-                    prompt_tokens=chat.prompt_tokens,
-                    response_tokens=chat.response_tokens,
-                    is_total=False,
-                )
+        sh.display_message_history(chat_session.message_history)
 
     if submit_button and user_input:
         with st.spinner("Thinking..."):
@@ -178,12 +165,6 @@ def main() -> None:
             else:
                 raise ValueError(openai_model_name)
 
-            chat_model = create_chat_model()
-            chat_model.model_name = model_name
-            chat_model.temperature = temperature
-            chat_model.max_tokens = max_tokens
-            # TODO: chat_model.memory_strategy
-            from llm_chain.models import StreamingRecord
             sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
 
             message = ""
@@ -191,47 +172,18 @@ def main() -> None:
                 nonlocal message
                 message += x.response
                 sh.display_chat_message(message, is_human=False, placeholder=placeholder_response)
-            chat_model.streaming_callback = _update_message
 
-            if use_web_search or use_stack_overflow:
-                document_index = ChromaDocumentIndex(n_results=3)
-                # Value is a callable; when called with a value it caches and returns the value
-                # when called without a value
-                prompt_cache = Value()
-                links = []
-                if use_web_search:
-                    links += [
-                        prompt_cache,  # input is user's question; caches and returns
-                        DuckDuckGoSearch(top_n=3),  # get the urls of the top search results
-                        sh.scrape_urls,  # scrape the websites corresponding to the URLs
-                        lambda docs: split_documents(docs=docs, max_chars=1_000),
-                        document_index,  # add docs to doc-index
-                    ]
-                if use_stack_overflow:
-                    links += [
-                        # if use_web_search is false, the original question will get passed in
-                        # to prompt_cache which will cache and return it;
-                        # if use_web_search is true, then prompt_cache will have already been set
-                        # and document_index will return None, so prompt_cache will return the
-                        # previously cached value (i.e. the original question) and pass that to
-                        # the search_query
-                        prompt_cache,
-                        lambda search_query: search_stack_overflow(query=search_query, max_questions=2, max_answers=1),  # noqa
-                        sh.stack_overflow_results_to_docs,
-                        # we almost certainly want to keep the entire answer
-                        lambda docs: split_documents(docs=docs, max_chars=2_500),
-                        document_index,  # add docs to doc-index
-                    ]
-
-                links += [
-                    prompt_cache,
-                    DocSearchTemplate(doc_index=document_index, n_docs=3),
-                    chat_model,
-                ]
-            else:
-                links = [chat_model]
-
-            chat_session.append(chain=Chain(links=links))
+            chain = sh.create_chain(
+                chat_model=create_chat_model(),
+                model_name=model_name,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                streaming_callback=_update_message,
+                prompt=user_input,
+                use_web_search=use_web_search,
+                use_stack_overflow=use_stack_overflow,
+            )
+            chat_session.append(chain=chain)
             chat_session(user_input)
             last_message = chat_session.message_history[-1]
             sh.display_totals(
