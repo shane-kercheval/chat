@@ -1,7 +1,8 @@
 """Helper functions for streamlit app."""
 # from functools import cache
 import re
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 import streamlit as st
 from llm_chain.tools import StackQuestion, scrape_url
 from llm_chain.base import ChatModel, MessageRecord, Document, Chain, Value
@@ -72,21 +73,6 @@ def apply_css() -> None:
     """
     # Add custom CSS to hide the label of the chat message
     css += '<style>section.main div.stTextArea label { display: none;}</style>'
-    # keep spinner in the middle of the screen
-    # css += """
-    # <style>
-    #     .stSpinner {
-    #         position: fixed;
-    #         top: 0;
-    #         left: 0;
-    #         right: 0;
-    #         bottom: 0;
-    #         display: flex;
-    #         justify-content: center;
-    #         align-items: center;
-    #     }
-    # </style>
-    # """
     st.markdown(css, unsafe_allow_html=True)
 
 
@@ -121,7 +107,10 @@ def display_chat_message(message: str, is_human: bool, placeholder: Any | None =
     sender_class = 'sender' if is_human else 'receiver'
     if placeholder:
         placeholder.empty()
-        placeholder.markdown(f"<div class='{sender_class}'>{message}</div>", unsafe_allow_html=True)
+        placeholder.markdown(
+            f"<div class='{sender_class}'>{message}</div>",
+            unsafe_allow_html=True,
+        )
     else:
         st.markdown(f"<div class='{sender_class}'>{message}</div>", unsafe_allow_html=True)
 
@@ -309,7 +298,6 @@ def build_chain(
                 lambda docs: split_documents(docs=docs, max_chars=2_500),
                 document_index,  # add docs to doc-index
             ]
-
         links += [
             prompt_cache,
             DocSearchTemplate(doc_index=document_index, n_docs=3),

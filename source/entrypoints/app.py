@@ -91,7 +91,6 @@ def main() -> None:
                 )
                 for field in template_fields:
                     field_values.append((field, st.text_area(field, height=100, key=field)))
-                    # field_values.append((match, st.sidebar.text_area(match, height=100)))
 
                 # when this button is pressed, we will build up the message from the template
                 # and the values from the user and fill in the chat message text_area
@@ -175,7 +174,11 @@ def main() -> None:
                 def _update_message(x: StreamingRecord) -> None:
                     nonlocal message
                     message += x.response
-                    sh.display_chat_message(message, is_human=False, placeholder=placeholder_response)
+                    sh.display_chat_message(
+                        message,
+                        is_human=False,
+                        placeholder=placeholder_response,
+                    )
 
                 chain = sh.build_chain(
                     chat_model=create_chat_model(),
@@ -192,10 +195,9 @@ def main() -> None:
                 if last_message.prompt != user_input:
                     # if prompt was updated then make some indication that the underlying prompt
                     # has changed
-                    placeholder_info.info("The prompt was modified as part of the chain.", icon="ℹ️")
+                    placeholder_info.info("The prompt was modified within the chain.", icon="ℹ️")
                     sh.display_chat_message(
                         last_message.prompt,
-                        # f"<i>Final Prompt (the prompt was modified as part of the chain)</i>:\n\n---\n\n{last_message.prompt}",  # noqa
                         is_human=True,
                         placeholder=placeholder_prompt,
                     )
