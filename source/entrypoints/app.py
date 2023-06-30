@@ -5,8 +5,8 @@ templates.
 import os
 from dotenv import load_dotenv
 import streamlit as st
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from llm_chain.base import ChatModel, Session
+from llm_chain.models import OpenAIChat, StreamingRecord
 import source.library.streamlit_helpers as sh
 
 # TODO: document
@@ -24,6 +24,10 @@ st.set_page_config(
     layout='wide',
 )
 
+def create_chat_model() -> ChatModel:
+    """TODO."""
+    # return sh.MockChatModel(model_name='mock')
+    return OpenAIChat(model_name='gpt-3.5-turbo')
 
 @st.cache_data
 def load_prompt_templates() -> dict:
@@ -46,21 +50,18 @@ def initialize() -> None:
     # Load the OpenAI API key from the environment variable
     load_dotenv()
     assert os.getenv("OPENAI_API_KEY")
-
+    sh.apply_css()
+    if 'chat_session' not in st.session_state:
+        st.session_state.chat_session = Session()
 
 def main() -> None:
     """Defines the application structure and behavior."""
     initialize()
-    sh.apply_css()
     message_state = st.session_state.setdefault('state', {'chat_message': ''})
-    if 'chat_conversation' not in st.session_state:
-        st.session_state.chat_conversation = sh._create_mock_conversation(num_chats=2)
 
     with st.sidebar:
         st.markdown('# Options')
-        openai_model = st.selectbox(label="Model", options=('GPT-3.5', 'GPT-4'))
-        # use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
-        # use_stack_overflow = st.checkbox(label="Use Stack Overflow", value=False)
+        openai_model_name = st.selectbox(label="Model", options=('GPT-3.5', 'GPT-4'))
 
         with st.expander("Additional Options"):
             temperature = st.slider(
@@ -90,7 +91,6 @@ def main() -> None:
                 )
                 for field in template_fields:
                     field_values.append((field, st.text_area(field, height=100, key=field)))
-                    # field_values.append((match, st.sidebar.text_area(match, height=100)))
 
                 # when this button is pressed, we will build up the message from the template
                 # and the values from the user and fill in the chat message text_area
@@ -108,22 +108,6 @@ def main() -> None:
             st.markdown('### Template:')
             st.sidebar.text(prompt_template)
 
-        st.markdown("# Tools")
-        tool_names = [
-            'Summarize PDF',
-            'Summarize URL (Single Page)',
-            'Agents??',
-        ]
-        template_name = st.selectbox(
-            '<label should be hidden>',
-            ['<Select>'] + tool_names,
-        )
-        
-        # st.markdown("# History")
-        # conversation_history = sh._create_mock_history(num_history=5)
-        # first_messages = [x.message_chain[1].content[0:40] for x in conversation_history]
-        # st.radio("history", first_messages)
-
     # display the chat text_area and total cost side-by-side
     col_craft_message, col_conversation_totals = st.columns([5, 1])
     with col_craft_message:
@@ -136,90 +120,114 @@ def main() -> None:
         )
     with col_conversation_totals:
         result_placeholder = st.empty()
-
     col_submit,  col_search, col_stack, col_clear =  st.columns([2, 4, 4, 2])
     with col_submit:
         submit_button = st.button("Submit")
-    
     with col_search:
-        use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
+        use_web_search = st.checkbox(
+            label="Use Web Search (DuckDuckGo)",
+            value=False,
+            help="Use DuckDuckGo to do a web-search based on the current input above and find the most relevant content and use that in the prompt to ChatGPT.",  # noqa
+        )
     with col_stack:
-        use_stack_overflow = st.checkbox(label="Use Stack Overflow", value=False)
-
-
+        use_stack_overflow = st.checkbox(
+            label="Use Stack Overflow",
+            value=False,
+            help="Search Stack Overflow based on the current input above and find the most relevant content and use that in the prompt to ChatGPT.",  # noqa
+        )
     with col_clear:
         clear_button = st.button("Clear")
         if clear_button:
-            st.session_state['chat_conversation'] = sh.ChatConversation(
-                chat_history=[],
-                message_chain=[
-                    SystemMessage(content="You are a helpful assistant."),
-                ],
-            )
+            st.session_state['chat_session'] = Session()
 
     sh.display_horizontal_line()
-    chat_conversation = st.session_state.get('chat_conversation', [])
+    chat_session = st.session_state.get('chat_session', Session())  # TODO.. is default needed???
 
+        # placeholders for the next submissions
+        # TODO: if i select a different model under Options, the totals for all messages disappears
     if submit_button and user_input:
-        human_message = HumanMessage(content=user_input)
-        chat_conversation.message_chain.append(human_message)
-        with st.spinner("Thinking..."):
-            if openai_model == 'GPT-3.5':
-                model_name = 'gpt-3.5-turbo'
-            elif openai_model == 'GPT-4':
-                model_name = 'gpt-4'
-            else:
-                raise ValueError(openai_model)
+        col_messages, col_totals = st.columns([5, 1])
+        with col_messages:
+            placeholder_response = st.empty()
+            placeholder_info = st.empty()
+            placeholder_prompt = st.empty()
+        with col_totals:
+            placeholder_message_totals = st.empty()
 
-            print(f"Calling ChatGPT: model={model_name}; temp={temperature}; max_tokens={max_tokens}")  # noqa
+        with st.spinner("Loading..."):
+            # display previous history: i.e. history at point before we hit submit
+            if chat_session.message_history:
+                sh.display_message_history(chat_session.message_history)
 
-            chat = ChatOpenAI(model=model_name, temperature=temperature, max_tokens=max_tokens)
-            # TODO: pass all messages and/or figure out memory buffer strategy
-            history = [chat_conversation.message_chain[0]] + [chat_conversation.message_chain[-1]]
-            print("history: " + str(history))
-            # response = chat(history)
-            response = AIMessage(content = sh._create_mock_message())
-            # st.session_state['chat_message'] = ""
+            if submit_button and user_input:
 
-        chat_data = sh.MessageMetaData(
-            model_name=model_name,
-            human_question=human_message,
-            full_question=' '.join([x.content for x in history]),
-            ai_response=response,
-        )
-        chat_conversation.chat_history.append(chat_data)
-        chat_conversation.message_chain.append(response)
-        # message_state['chat_message'] = user_input  # Update session state value
-        # message_state['chat_message'] = ''
+                if openai_model_name == 'GPT-3.5':
+                    model_name = 'gpt-3.5-turbo'
+                elif openai_model_name == 'GPT-4':
+                    model_name = 'gpt-4'
+                else:
+                    raise ValueError(openai_model_name)
 
-    # display message history
-    if chat_conversation:
-        chat_history = list(reversed(chat_conversation.chat_history))
-        for chat in chat_history:
-            col_messages, col_totals = st.columns([5, 1])
-            with col_messages:
-                sh.display_chat_message(chat.ai_response.content, is_human=False)
-                sh.display_chat_message(chat.human_question.content, is_human=True)
-            with col_totals:
+                sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
+
+                message = ""
+                def _update_message(x: StreamingRecord) -> None:
+                    nonlocal message
+                    message += x.response
+                    sh.display_chat_message(
+                        message,
+                        is_human=False,
+                        placeholder=placeholder_response,
+                    )
+
+                chain = sh.build_chain(
+                    chat_model=create_chat_model(),
+                    model_name=model_name,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    streaming_callback=_update_message,
+                    use_web_search=use_web_search,
+                    use_stack_overflow=use_stack_overflow,
+                )
+                chat_session.append(chain=chain)
+                _ = chat_session(user_input)
+                last_message = chat_session.message_history[-1]
+                if last_message.prompt != user_input:
+                    # if prompt was updated then make some indication that the underlying prompt
+                    # has changed
+                    placeholder_info.info("The prompt was modified within the chain.", icon="ℹ️")
+                    sh.display_chat_message(
+                        last_message.prompt,
+                        is_human=True,
+                        placeholder=placeholder_prompt,
+                    )
                 sh.display_totals(
-                    cost=chat.cost,
-                    total_tokens=chat.total_tokens,
-                    prompt_tokens=chat.prompt_tokens,
-                    completion_tokens=chat.completion_tokens,
+                    cost=last_message.cost,
+                    total_tokens=last_message.total_tokens,
+                    prompt_tokens=last_message.prompt_tokens,
+                    response_tokens=last_message.response_tokens,
                     is_total=False,
+                    placeholder=placeholder_message_totals,
                 )
 
-        # display totals for entire conversation
+    else:
+        if chat_session.message_history:
+            sh.display_message_history(chat_session.message_history)
+
+    if chat_session.message_history:
+        # display totals for entire conversation; need to do this after we are done with the last
+        # submission
+        # TODO: need to change this to a chain and track all costs not just message costs
+        # need to display an info icon indicating that non-chat message costs/tokens are not
+        # displayed and so won't match totals
         sh.display_totals(
-            cost=sum(x.cost for x in chat_history),
-            total_tokens=sum(x.total_tokens for x in chat_history),
-            prompt_tokens=sum(x.prompt_tokens for x in chat_history),
-            completion_tokens=sum(x.completion_tokens for x in chat_history),
+            cost=chat_session.cost,
+            total_tokens=chat_session.total_tokens,
+            prompt_tokens=chat_session.prompt_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display  # noqa
+            response_tokens=chat_session.response_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display # noqa
             is_total=True,
             placeholder=result_placeholder,
         )
-
-    print("--------------END--------------")
 
 if __name__ == '__main__':
     main()

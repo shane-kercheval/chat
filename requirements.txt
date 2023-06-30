@@ -6,6 +6,7 @@ fastapi
 helpsk
 jupyter-contrib-nbextensions
 langchain
+llm-chain
 notebook
 numpy
 openai
