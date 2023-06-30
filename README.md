@@ -8,7 +8,7 @@ Features:
 - switch between GPT-3.5 and GPT-4
 - shows token usage and costs for individual messages and aggregate across all messages
 - has options for web-search (via DuckDuckGo) and searching Stack Overflow (adds the search results to a local vector database which is used to inject the most relevant content into the prompt)
-- Allows users to create and select prompt-templates (`chat/prompt_templates`)
+- Allows users to create and select prompt-templates (`chat/source/prompt_templates`)
 
 ## Running
 

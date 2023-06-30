@@ -9,15 +9,6 @@ from llm_chain.base import ChatModel, Session
 from llm_chain.models import OpenAIChat, StreamingRecord
 import source.library.streamlit_helpers as sh
 
-# TODO: document
-# Known issues;
-# Once you modify the chat message, the prompt template message will know fill the text-box
-# Steps: fill out fields in prompt template; hit "Create Message"; Chat message is updated;
-# change one or more fields; hit "Create Message"; Chat message is still updated; Modify chat
-# message; now click "Create Message" from prompt template; Chat message will not update;
-# however, if you change one or more of field values in the prompt template and hit Create Message
-# then the chat message will update as expected.
-
 st.set_page_config(
     page_title="ChatGPT",
     page_icon="🤖",
