@@ -5,11 +5,7 @@ templates.
 import os
 from dotenv import load_dotenv
 import streamlit as st
-from llm_chain.base import ChatModel, Chain, Session, Value
-from llm_chain.tools import DuckDuckGoSearch, split_documents, search_stack_overflow
-from llm_chain.indexes import ChromaDocumentIndex
-from llm_chain.prompt_templates import DocSearchTemplate
-
+from llm_chain.base import ChatModel, Session
 from llm_chain.models import OpenAIChat, StreamingRecord
 import source.library.streamlit_helpers as sh
 
@@ -113,7 +109,6 @@ def main() -> None:
             st.markdown('### Template:')
             st.sidebar.text(prompt_template)
 
-
     # display the chat text_area and total cost side-by-side
     col_craft_message, col_conversation_totals = st.columns([5, 1])
     with col_craft_message:
@@ -126,14 +121,21 @@ def main() -> None:
         )
     with col_conversation_totals:
         result_placeholder = st.empty()
-
     col_submit,  col_search, col_stack, col_clear =  st.columns([2, 4, 4, 2])
     with col_submit:
         submit_button = st.button("Submit")
     with col_search:
-        use_web_search = st.checkbox(label="Use Web Search (DuckDuckGo)", value=False)
+        use_web_search = st.checkbox(
+            label="Use Web Search (DuckDuckGo)",
+            value=False,
+            help="Use DuckDuckGo to do a web-search based on the current input above and find the most relevant content and use that in the prompt to ChatGPT.",  # noqa
+        )
     with col_stack:
-        use_stack_overflow = st.checkbox(label="Use Stack Overflow", value=False)
+        use_stack_overflow = st.checkbox(
+            label="Use Stack Overflow",
+            value=False,
+            help="Search Stack Overflow based on the current input above and find the most relevant content and use that in the prompt to ChatGPT.",  # noqa
+        )
     with col_clear:
         clear_button = st.button("Clear")
         if clear_button:
@@ -142,58 +144,75 @@ def main() -> None:
     sh.display_horizontal_line()
     chat_session = st.session_state.get('chat_session', Session())  # TODO.. is default needed???
 
-    # placeholders for the next submissions
-    # TODO: if i select a different model under Options, the totals for all messages disappears
+        # placeholders for the next submissions
+        # TODO: if i select a different model under Options, the totals for all messages disappears
     if submit_button and user_input:
         col_messages, col_totals = st.columns([5, 1])
         with col_messages:
             placeholder_response = st.empty()
+            placeholder_info = st.empty()
             placeholder_prompt = st.empty()
         with col_totals:
             placeholder_message_totals = st.empty()
 
-    # display previous history: i.e. history at point before we hit submit
+        with st.spinner("Loading..."):
+            # display previous history: i.e. history at point before we hit submit
+            if chat_session.message_history:
+                sh.display_message_history(chat_session.message_history)
+
+            if submit_button and user_input:
+
+                if openai_model_name == 'GPT-3.5':
+                    model_name = 'gpt-3.5-turbo'
+                elif openai_model_name == 'GPT-4':
+                    model_name = 'gpt-4'
+                else:
+                    raise ValueError(openai_model_name)
+
+                sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
+
+                message = ""
+                def _update_message(x: StreamingRecord) -> None:
+                    nonlocal message
+                    message += x.response
+                    sh.display_chat_message(message, is_human=False, placeholder=placeholder_response)
+
+                chain = sh.build_chain(
+                    chat_model=create_chat_model(),
+                    model_name=model_name,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    streaming_callback=_update_message,
+                    use_web_search=use_web_search,
+                    use_stack_overflow=use_stack_overflow,
+                )
+                chat_session.append(chain=chain)
+                _ = chat_session(user_input)
+                last_message = chat_session.message_history[-1]
+                if last_message.prompt != user_input:
+                    # if prompt was updated then make some indication that the underlying prompt
+                    # has changed
+                    placeholder_info.info("The prompt was modified as part of the chain.", icon="ℹ️")
+                    sh.display_chat_message(
+                        last_message.prompt,
+                        # f"<i>Final Prompt (the prompt was modified as part of the chain)</i>:\n\n---\n\n{last_message.prompt}",  # noqa
+                        is_human=True,
+                        placeholder=placeholder_prompt,
+                    )
+                sh.display_totals(
+                    cost=last_message.cost,
+                    total_tokens=last_message.total_tokens,
+                    prompt_tokens=last_message.prompt_tokens,
+                    response_tokens=last_message.response_tokens,
+                    is_total=False,
+                    placeholder=placeholder_message_totals,
+                )
+
+    else:
+        if chat_session.message_history:
+            sh.display_message_history(chat_session.message_history)
+
     if chat_session.message_history:
-        sh.display_message_history(chat_session.message_history)
-
-    if submit_button and user_input:
-        # with st.spinner("Thinking..."):
-        if openai_model_name == 'GPT-3.5':
-            model_name = 'gpt-3.5-turbo'
-        elif openai_model_name == 'GPT-4':
-            model_name = 'gpt-4'
-        else:
-            raise ValueError(openai_model_name)
-
-        sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
-
-        message = ""
-        def _update_message(x: StreamingRecord) -> None:
-            nonlocal message
-            message += x.response
-            sh.display_chat_message(message, is_human=False, placeholder=placeholder_response)
-
-        chain = sh.build_chain(
-            chat_model=create_chat_model(),
-            model_name=model_name,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            streaming_callback=_update_message,
-            use_web_search=use_web_search,
-            use_stack_overflow=use_stack_overflow,
-        )
-        chat_session.append(chain=chain)
-        chat_session(user_input)
-        last_message = chat_session.message_history[-1]
-        sh.display_totals(
-            cost=last_message.cost,
-            total_tokens=last_message.total_tokens,
-            prompt_tokens=last_message.prompt_tokens,
-            response_tokens=last_message.response_tokens,
-            is_total=False,
-            placeholder=placeholder_message_totals,
-        )
-
         # display totals for entire conversation; need to do this after we are done with the last
         # submission
         # TODO: need to change this to a chain and track all costs not just message costs
@@ -207,7 +226,6 @@ def main() -> None:
             is_total=True,
             placeholder=result_placeholder,
         )
-
 
 if __name__ == '__main__':
     main()

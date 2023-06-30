@@ -72,6 +72,21 @@ def apply_css() -> None:
     """
     # Add custom CSS to hide the label of the chat message
     css += '<style>section.main div.stTextArea label { display: none;}</style>'
+    # keep spinner in the middle of the screen
+    # css += """
+    # <style>
+    #     .stSpinner {
+    #         position: fixed;
+    #         top: 0;
+    #         left: 0;
+    #         right: 0;
+    #         bottom: 0;
+    #         display: flex;
+    #         justify-content: center;
+    #         align-items: center;
+    #     }
+    # </style>
+    # """
     st.markdown(css, unsafe_allow_html=True)
 
 
@@ -231,11 +246,13 @@ def scrape_urls(search_results: dict) -> list[Document]:
     - replace new-lines with spaces
     - create a Document object.
     """
-    return [
-        Document(content=re.sub(r'\s+', ' ', scrape_url(x['href'])))
-        for x in search_results
-    ]
-
+    results = []
+    for result in search_results:
+        try:  # noqa: SIM105
+            results.append(Document(content=re.sub(r'\s+', ' ', scrape_url(result['href']))))
+        except:  # noqa: E722
+            pass
+    return results
 
 def stack_overflow_results_to_docs(results: list[StackQuestion]) -> list[Document]:
     """TODO."""
