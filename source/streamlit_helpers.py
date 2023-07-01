@@ -238,7 +238,11 @@ def scrape_urls(search_results: dict) -> list[Document]:
     results = []
     for result in search_results:
         try:  # noqa: SIM105
-            results.append(Document(content=re.sub(r'\s+', ' ', scrape_url(result['href']))))
+            doc = Document(
+                content=re.sub(r'\s+', ' ', scrape_url(result['href'])),
+                metadata={'url': result['href']},
+            )
+            results.append(doc)
         except:  # noqa: E722
             pass
     return results
@@ -248,9 +252,12 @@ def stack_overflow_results_to_docs(results: list[StackQuestion]) -> list[Documen
     answers = []
     for question in results:
         for answer in question.answers:
-            f"{question.title[0:100]} - {answer.markdown}"
-            answers.append(f"{question.title[0:100]}")
-    return [Document(content=x) for x in answers]
+            doc = Document(
+                content=f"{question.title[0:100]} - {answer.markdown[0:1_500]}",
+                metadata={'url': question.link},
+            )
+            answers.append(doc)
+    return answers
 
 
 def build_chain(
@@ -268,9 +275,11 @@ def build_chain(
     chat_model.max_tokens = max_tokens
     # TODO: chat_model.memory_strategy
     chat_model.streaming_callback = streaming_callback
+    doc_prompt_template = None
 
     if use_web_search or use_stack_overflow:
         document_index = ChromaDocumentIndex(n_results=3)
+        doc_prompt_template = DocSearchTemplate(doc_index=document_index, n_docs=3)
         # Value is a callable; when called with a value it caches and returns the value
         # when called without a value
         prompt_cache = Value()
@@ -300,10 +309,10 @@ def build_chain(
             ]
         links += [
             prompt_cache,
-            DocSearchTemplate(doc_index=document_index, n_docs=3),
+            doc_prompt_template,
             chat_model,
         ]
     else:
         links = [chat_model]
 
-    return Chain(links=links)
+    return Chain(links=links), doc_prompt_template

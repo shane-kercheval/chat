@@ -12,7 +12,16 @@ Features:
 
 ## Running
 
-- .env
+- Create a `.env` file in the project directory (i.e. same directory as this README file) in the format below. This file is used by `app.py` to load the key/value pairs as environment variables.
+    - In order to use the `Use Stack Overflow` flag, you must have an entry for the `STACK_OVERFLOW_KEY` environment variable. Create an account and app at [Stack Apps](https://stackapps.com/) and use the `key` that is generated (not the `secret`). Otherwise you, can omit
+    
+```
+OPENAI_API_KEY=....
+STACK_OVERFLOW_KEY=...
+```
+
+- `make docker_run`
+- open browser to `http://localhost:8501`
 
 
 ## Prompt Templates

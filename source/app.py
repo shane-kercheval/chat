@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import streamlit as st
 from llm_chain.base import ChatModel, Session
 from llm_chain.models import OpenAIChat, StreamingRecord
-import source.library.streamlit_helpers as sh
+import source.streamlit_helpers as sh
 
 st.set_page_config(
     page_title="ChatGPT",
@@ -25,10 +25,10 @@ def load_prompt_templates() -> dict:
     """TBD."""
     import os
     import yaml
-    template_files = os.listdir('/code/prompt_templates/')
+    template_files = os.listdir('/code/source/prompt_templates/')
     templates = {}
     for file_name in template_files:
-        with open(os.path.join('/code/prompt_templates/', file_name)) as handle:
+        with open(os.path.join('/code/source/prompt_templates/', file_name)) as handle:
             yaml_data = yaml.safe_load(handle)
             template_name = yaml_data.pop('name')
             assert template_name not in templates
@@ -121,11 +121,16 @@ def main() -> None:
             help="Use DuckDuckGo to do a web-search based on the current input above and find the most relevant content and use that in the prompt to ChatGPT.",  # noqa
         )
     with col_stack:
-        use_stack_overflow = st.checkbox(
-            label="Use Stack Overflow",
-            value=False,
-            help="Search Stack Overflow based on the current input above and find the most relevant content and use that in the prompt to ChatGPT.",  # noqa
-        )
+        # only display the stack overflow checkbox if the environment variable exists
+        stack_overflow_key = os.getenv('STACK_OVERFLOW_KEY', None)
+        if stack_overflow_key:
+            use_stack_overflow = st.checkbox(
+                label="Use Stack Overflow",
+                value=False,
+                help="Search Stack Overflow based on the current input above and find the most relevant content and use that in the prompt to ChatGPT.",  # noqa
+            )
+        else:
+            use_stack_overflow = False
     with col_clear:
         clear_button = st.button("Clear")
         if clear_button:
@@ -141,6 +146,7 @@ def main() -> None:
         with col_messages:
             placeholder_response = st.empty()
             placeholder_info = st.empty()
+            placeholder_documents = st.empty()
             placeholder_prompt = st.empty()
         with col_totals:
             placeholder_message_totals = st.empty()
@@ -171,7 +177,7 @@ def main() -> None:
                         placeholder=placeholder_response,
                     )
 
-                chain = sh.build_chain(
+                chain, doc_prompt_template = sh.build_chain(
                     chat_model=create_chat_model(),
                     model_name=model_name,
                     max_tokens=max_tokens,
@@ -192,6 +198,15 @@ def main() -> None:
                         is_human=True,
                         placeholder=placeholder_prompt,
                     )
+
+                if doc_prompt_template and doc_prompt_template.similar_docs:
+                    values = [x.metadata['url'] for x in doc_prompt_template.similar_docs]
+                    placeholder_documents.info(
+                        "Information from the following URLs was provided to the model:\n\n" +\
+                        "\n\n".join(values),
+                        icon="ℹ️",
+                    )
+
                 sh.display_totals(
                     cost=last_message.cost,
                     total_tokens=last_message.total_tokens,
