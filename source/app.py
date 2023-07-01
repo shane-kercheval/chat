@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 import yaml
 import streamlit as st
+import streamlit.components.v1 as components
 from llm_chain.base import Session
 from llm_chain.models import OpenAIChat, StreamingRecord
 import source.streamlit_helpers as sh
@@ -224,6 +225,24 @@ def main() -> None:
             is_total=True,
             placeholder=result_placeholder,
         )
+
+    # add javascript to add cmd+enter keyboard-shortcut for Submit button
+    script = """
+    <script>
+    const doc = window.parent.document  // break out of the IFrame
+    doc.addEventListener('keydown', function(event) {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        console.log('asdfasdfasdfasd')
+        var submitButton = doc.querySelector('button > div > p');
+        if (submitButton && submitButton.textContent === 'Submit') {
+        submitButton.parentElement.parentElement.click();
+        }
+    }
+    });
+    </script>
+    """
+    components.html(script, width=0, height=0)
+
 
 if __name__ == '__main__':
     main()
