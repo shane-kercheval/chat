@@ -1,0 +1,19 @@
+name: Create doc strings
+category: code
+template: |
+  Create a doc string for the following python function. Only return the doc string, not the function. It should be in the format:
+
+  ```
+  """
+  <This is the description>
+
+  Args:
+      variable_a: <description of variable_a>  
+  """
+  ```
+
+  Here is the function:
+
+  ```
+  {{python_function}}
+  ```

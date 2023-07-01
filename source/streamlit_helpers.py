@@ -1,7 +1,7 @@
 """Helper functions for streamlit app."""
 # from functools import cache
 import re
-from typing import Any
+from typing import TypeVar
 from collections.abc import Callable
 import streamlit as st
 from llm_chain.tools import StackQuestion, scrape_url
@@ -10,6 +10,9 @@ from llm_chain.models import OpenAIChat, StreamingRecord
 from llm_chain.tools import DuckDuckGoSearch, split_documents, search_stack_overflow
 from llm_chain.indexes import ChromaDocumentIndex
 from llm_chain.prompt_templates import DocSearchTemplate
+
+
+StreamlitWidget = TypeVar('StreamlitWidget')
 
 
 def apply_css() -> None:
@@ -95,28 +98,32 @@ def display_horizontal_line(margin: str = '10px 0px 30px 0px') -> None:
     st.markdown(css + "<div class='line'></div>", unsafe_allow_html=True)
 
 
-def display_chat_message(message: str, is_human: bool, placeholder: Any | None = None) -> None:
+def display_chat_message(
+        message: str,
+        is_human: bool,
+        placeholder: StreamlitWidget | None = None) -> None:
     """
     Displays a chat message and formats according to whether or not the message is from a human.
 
     Args:
-        message: the message to display
-        is_human: True if the message is from a human; False if message is OpenAI response
-        placeholder: TODO
+        message:
+            the message to display
+        is_human:
+            True if the message is from a human; False if message is OpenAI response
+        placeholder:
+            a placeholder is widget e.g. result from st.empty(); if provided, we will clear the
+            widget and write the markdown to that widget rather using `st.markdown`.
     """
-    sender_class = 'sender' if is_human else 'receiver'
+    message_html = f"<div class='{'sender' if is_human else 'receiver'}'>{message}</div>"
     if placeholder:
         placeholder.empty()
-        placeholder.markdown(
-            f"<div class='{sender_class}'>{message}</div>",
-            unsafe_allow_html=True,
-        )
+        placeholder.markdown(message_html, unsafe_allow_html=True)
     else:
-        st.markdown(f"<div class='{sender_class}'>{message}</div>", unsafe_allow_html=True)
+        st.markdown(message_html, unsafe_allow_html=True)
 
 
 def display_message_history(message_history: list[MessageRecord]) -> None:
-    """TODO."""
+    """Displays the message history and corresponding cost and token usage for each mesage."""
     chat_history = list(reversed(message_history))
     for chat in chat_history:
         col_messages, col_totals = st.columns([5, 1])
@@ -133,7 +140,7 @@ def display_message_history(message_history: list[MessageRecord]) -> None:
             )
 
 
-def create_prompt_template_options(templates: dict) -> None:
+def create_prompt_template_options(templates: dict) -> StreamlitWidget:
     """Returns a drop-down widget with prompt templates."""
     template_names = sorted(templates.items(), key=lambda x: (x[1]['category'], x[1]['template']))
     template_names = [x[0] for x in template_names]
@@ -154,7 +161,6 @@ def get_fields_from_template(prompt_template: str) -> list[str]:
     Args:
         prompt_template: the template to extract the fields from.
     """
-    # TODO: unit test
     # Regular expression pattern to match values within double brackets
     pattern = r"\{\{(.*?)\}\}"
     # Find all matches of the pattern in the text
@@ -198,36 +204,7 @@ def display_totals(
     else:
         st.markdown(cost_html, unsafe_allow_html=True)
 
-def _create_mock_message() -> str:
-    """TBD."""
-    import random
-    from faker import Faker
-    fake = Faker()
-    return ' '.join([fake.word() for _ in range(random.randint(10, 100))])
 
-
-class MockChatModel(ChatModel):
-    """TODO."""
-
-    def __init__(self, model_name: str, temperature: float = 0, max_records: int = 0):
-        super().__init__()
-        self.model_name = model_name
-        self.temperature = temperature
-        self.max_records = max_records
-
-    def _run(self, prompt: str) -> MessageRecord:
-        return MessageRecord(
-            prompt=prompt,
-            response=_create_mock_message(),
-            cost=1.25,
-            prompt_tokens=100,
-            response_tokens=75,
-            total_tokens=175,
-        )
-
-
-# define a function that takes the links from the web-search, scrapes the web-pages,
-# and then creates Document objects from the text of each web-page
 def scrape_urls(search_results: dict) -> list[Document]:
     """
     For each url (i.e. `href` in `search_results`):
@@ -238,19 +215,39 @@ def scrape_urls(search_results: dict) -> list[Document]:
     results = []
     for result in search_results:
         try:  # noqa: SIM105
-            results.append(Document(content=re.sub(r'\s+', ' ', scrape_url(result['href']))))
+            doc = Document(
+                content=re.sub(r'\s+', ' ', scrape_url(result['href'])),
+                metadata={'url': result['href']},
+            )
+            results.append(doc)
         except:  # noqa: E722
             pass
     return results
 
+
 def stack_overflow_results_to_docs(results: list[StackQuestion]) -> list[Document]:
-    """TODO."""
+    """
+    Takes a list of results from the `search_stack_overflow` function, and returns a corresponding
+    list of Document objects.
+    """
     answers = []
     for question in results:
         for answer in question.answers:
-            f"{question.title[0:100]} - {answer.markdown}"
-            answers.append(f"{question.title[0:100]}")
-    return [Document(content=x) for x in answers]
+            doc = Document(
+                content=f"{question.title[0:100]} - {answer.markdown[0:1_500]}",
+                metadata={'url': question.link},
+            )
+            answers.append(doc)
+    return answers
+
+
+def get_model_name(model_display_name: str) -> str:
+    """Given the model name displayed o the user, return the actual model name."""
+    if model_display_name == 'GPT-3.5':
+        return 'gpt-3.5-turbo'
+    if model_display_name == 'GPT-4':
+        return 'gpt-4'
+    raise ValueError(model_display_name)
 
 
 def build_chain(
@@ -262,15 +259,21 @@ def build_chain(
         use_web_search: bool,
         use_stack_overflow: bool,
         ) -> Chain:
-    """TODO."""
+    """
+    Build a Chain based on the options provided.
+
+    Returns both the chain and the DocSearchTemplate object (if web-search or
+    stack-overflow-search) is used so that we can display the URLs from the search to the end-user.
+    """
     chat_model.model_name = model_name
     chat_model.temperature = temperature
     chat_model.max_tokens = max_tokens
-    # TODO: chat_model.memory_strategy
     chat_model.streaming_callback = streaming_callback
+    doc_prompt_template = None
 
     if use_web_search or use_stack_overflow:
         document_index = ChromaDocumentIndex(n_results=3)
+        doc_prompt_template = DocSearchTemplate(doc_index=document_index, n_docs=3)
         # Value is a callable; when called with a value it caches and returns the value
         # when called without a value
         prompt_cache = Value()
@@ -300,10 +303,38 @@ def build_chain(
             ]
         links += [
             prompt_cache,
-            DocSearchTemplate(doc_index=document_index, n_docs=3),
+            doc_prompt_template,
             chat_model,
         ]
     else:
         links = [chat_model]
 
-    return Chain(links=links)
+    return Chain(links=links), doc_prompt_template
+
+
+def _create_fake_message() -> str:
+    """Creates a fake message (random words of random length)."""
+    import random
+    from faker import Faker
+    fake = Faker()
+    return ' '.join([fake.word() for _ in range(random.randint(10, 100))])
+
+
+class MockChatModel(ChatModel):
+    """Mock Chat model that creates takes a prompt and returns fake message; used for dev."""
+
+    def __init__(self, model_name: str, temperature: float = 0, max_records: int = 0):
+        super().__init__()
+        self.model_name = model_name
+        self.temperature = temperature
+        self.max_records = max_records
+
+    def _run(self, prompt: str) -> MessageRecord:
+        return MessageRecord(
+            prompt=prompt,
+            response=_create_fake_message(),
+            cost=1.25,
+            prompt_tokens=100,
+            response_tokens=75,
+            total_tokens=175,
+        )
