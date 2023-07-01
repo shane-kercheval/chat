@@ -1,5 +1,3 @@
-# chat
-
 This streamlit app gives basic chat functionality using the [llm-chain package](https://github.com/shane-kercheval/llm-chain) and OpenAI.
 
 Features:
