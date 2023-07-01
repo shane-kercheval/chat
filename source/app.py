@@ -1,13 +1,18 @@
 """
-Streamlit app that enables conversations with ChatGPT and additional features like prompt
+Streamlit app that enables conversations with ChatGPT and has additional features like prompt
 templates.
 """
 import os
 from dotenv import load_dotenv
+import yaml
 import streamlit as st
-from llm_chain.base import ChatModel, Session
+from llm_chain.base import Session
 from llm_chain.models import OpenAIChat, StreamingRecord
 import source.streamlit_helpers as sh
+
+
+PROMPT_TEMPLATE_DIR = '/code/source/prompt_templates/'
+
 
 st.set_page_config(
     page_title="ChatGPT",
@@ -15,45 +20,46 @@ st.set_page_config(
     layout='wide',
 )
 
-def create_chat_model() -> ChatModel:
-    """TODO."""
-    # return sh.MockChatModel(model_name='mock')
-    return OpenAIChat(model_name='gpt-3.5-turbo')
 
 @st.cache_data
 def load_prompt_templates() -> dict:
-    """TBD."""
-    import os
-    import yaml
-    template_files = os.listdir('/code/source/prompt_templates/')
+    """
+    Loads the prompt templates from a directory and returns them as a dictionary with the name of
+    the template as the key and template and the value.
+    """
+    template_files = os.listdir(PROMPT_TEMPLATE_DIR)
     templates = {}
     for file_name in template_files:
-        with open(os.path.join('/code/source/prompt_templates/', file_name)) as handle:
+        with open(os.path.join(PROMPT_TEMPLATE_DIR, file_name)) as handle:
             yaml_data = yaml.safe_load(handle)
             template_name = yaml_data.pop('name')
-            assert template_name not in templates
+            assert template_name not in templates  # don't duplicate template names
             templates[template_name] = yaml_data
     return templates
 
 
 def initialize() -> None:
-    """Initialize environment and app."""
+    """Initializes environment and app."""
     # Load the OpenAI API key from the environment variable
     load_dotenv()
     assert os.getenv("OPENAI_API_KEY")
     sh.apply_css()
     if 'chat_session' not in st.session_state:
+        # chat_session tracks the history of messages/chains used during the session
+        # the `Clear` button (or page refresh) clears the session
         st.session_state.chat_session = Session()
+
 
 def main() -> None:
     """Defines the application structure and behavior."""
     initialize()
-    message_state = st.session_state.setdefault('state', {'chat_message': ''})
+    # the user_input_state caches the value from the text-box where the user enters their question
+    # we need this for updating the text-box from the prompt-templates
+    user_input_state = st.session_state.setdefault('state', {'value': ''})
 
     with st.sidebar:
         st.markdown('# Options')
         openai_model_name = st.selectbox(label="Model", options=('GPT-3.5', 'GPT-4'))
-
         with st.expander("Additional Options"):
             temperature = st.slider(
                 label="Temperature",
@@ -63,7 +69,7 @@ def main() -> None:
             max_tokens = st.slider(
                 label="Max Tokens",
                 min_value=100, max_value=3000, value=2000, step=100,
-                help="The maximum number of tokens to generate in the completion."  # noqa
+                help="The maximum number of tokens to generate in the completion.",
             )
 
         st.markdown("# Prompt Template")
@@ -82,19 +88,17 @@ def main() -> None:
                 )
                 for field in template_fields:
                     field_values.append((field, st.text_area(field, height=100, key=field)))
-
                 # when this button is pressed, we will build up the message from the template
                 # and the values from the user and fill in the chat message text_area
                 create_message_submit = st.form_submit_button(label='Create message')
 
             if create_message_submit:
-                chat_gpt_message = prompt_template
+                chat_message = prompt_template
                 # replace all instances of `{{field}}` with the value from the user
                 for field, value in field_values:
-                    chat_gpt_message = chat_gpt_message.replace("{{" + field + "}}", value)
+                    chat_message = chat_message.replace("{{" + field + "}}", value)
 
-                message_state['chat_message'] = chat_gpt_message
-                print(f"message_state - updated: `{message_state}`")
+                user_input_state['value'] = chat_message
 
             st.markdown('### Template:')
             st.sidebar.text(prompt_template)
@@ -105,25 +109,25 @@ def main() -> None:
         user_input = st.text_area(
             "<label should be hidden>",
             key='chat_message',
-            value=message_state['chat_message'],
+            value=user_input_state['value'],
             placeholder="Ask a question.",
             height=150,
         )
     with col_conversation_totals:
         result_placeholder = st.empty()
-    col_submit,  col_search, col_stack, col_clear =  st.columns([2, 4, 4, 2])
+
+    col_submit,  col_web_search, col_stack_search, col_clear =  st.columns([2, 4, 4, 2])
     with col_submit:
         submit_button = st.button("Submit")
-    with col_search:
+    with col_web_search:
         use_web_search = st.checkbox(
             label="Use Web Search (DuckDuckGo)",
             value=False,
             help="Use DuckDuckGo to do a web-search based on the current input above and find the most relevant content and use that in the prompt to ChatGPT.",  # noqa
         )
-    with col_stack:
+    with col_stack_search:
         # only display the stack overflow checkbox if the environment variable exists
-        stack_overflow_key = os.getenv('STACK_OVERFLOW_KEY', None)
-        if stack_overflow_key:
+        if os.getenv('STACK_OVERFLOW_KEY', None):
             use_stack_overflow = st.checkbox(
                 label="Use Stack Overflow",
                 value=False,
@@ -137,10 +141,10 @@ def main() -> None:
             st.session_state['chat_session'] = Session()
 
     sh.display_horizontal_line()
-    chat_session = st.session_state.get('chat_session', Session())  # TODO.. is default needed???
+    chat_session = st.session_state.get('chat_session', Session())
 
-        # placeholders for the next submissions
-        # TODO: if i select a different model under Options, the totals for all messages disappears
+    # define the placeholders for the next chat prompt/response so that we can place them at the
+    # tope of the (previous) messages
     if submit_button and user_input:
         col_messages, col_totals = st.columns([5, 1])
         with col_messages:
@@ -152,85 +156,71 @@ def main() -> None:
             placeholder_message_totals = st.empty()
 
         with st.spinner("Loading..."):
-            # display previous history: i.e. history at point before we hit submit
             if chat_session.message_history:
                 sh.display_message_history(chat_session.message_history)
 
-            if submit_button and user_input:
+            sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
 
-                if openai_model_name == 'GPT-3.5':
-                    model_name = 'gpt-3.5-turbo'
-                elif openai_model_name == 'GPT-4':
-                    model_name = 'gpt-4'
-                else:
-                    raise ValueError(openai_model_name)
-
-                sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
-
-                message = ""
-                def _update_message(x: StreamingRecord) -> None:
-                    nonlocal message
-                    message += x.response
-                    sh.display_chat_message(
-                        message,
-                        is_human=False,
-                        placeholder=placeholder_response,
-                    )
-
-                chain, doc_prompt_template = sh.build_chain(
-                    chat_model=create_chat_model(),
-                    model_name=model_name,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    streaming_callback=_update_message,
-                    use_web_search=use_web_search,
-                    use_stack_overflow=use_stack_overflow,
-                )
-                chat_session.append(chain=chain)
-                _ = chat_session(user_input)
-                last_message = chat_session.message_history[-1]
-                if last_message.prompt != user_input:
-                    # if prompt was updated then make some indication that the underlying prompt
-                    # has changed
-                    placeholder_info.info("The prompt was modified within the chain.", icon="ℹ️")
-                    sh.display_chat_message(
-                        last_message.prompt,
-                        is_human=True,
-                        placeholder=placeholder_prompt,
-                    )
-
-                if doc_prompt_template and doc_prompt_template.similar_docs:
-                    values = [x.metadata['url'] for x in doc_prompt_template.similar_docs]
-                    placeholder_documents.info(
-                        "Information from the following URLs was provided to the model:\n\n" +\
-                        "\n\n".join(values),
-                        icon="ℹ️",
-                    )
-
-                sh.display_totals(
-                    cost=last_message.cost,
-                    total_tokens=last_message.total_tokens,
-                    prompt_tokens=last_message.prompt_tokens,
-                    response_tokens=last_message.response_tokens,
-                    is_total=False,
-                    placeholder=placeholder_message_totals,
+            message = ""
+            def _update_message(x: StreamingRecord) -> None:
+                nonlocal message
+                message += x.response
+                sh.display_chat_message(
+                    message,
+                    is_human=False,
+                    placeholder=placeholder_response,
                 )
 
-    else:
-        if chat_session.message_history:
-            sh.display_message_history(chat_session.message_history)
+            chain, doc_prompt_template = sh.build_chain(
+                # chat_model=sh.MockChatModel(model_name='mock'),
+                chat_model=OpenAIChat(model_name='gpt-3.5-turbo'),
+                model_name=sh.get_model_name(model_display_name=openai_model_name),
+                max_tokens=max_tokens,
+                temperature=temperature,
+                streaming_callback=_update_message,
+                use_web_search=use_web_search,
+                use_stack_overflow=use_stack_overflow,
+            )
+            chat_session.append(chain=chain)
+            _ = chat_session(user_input)
+            last_message = chat_session.message_history[-1]
+            if last_message.prompt != user_input:
+                # if prompt was updated then make some indication that the underlying prompt
+                # has changed
+                placeholder_info.info("The prompt was modified within the chain.", icon="ℹ️")
+                sh.display_chat_message(
+                    last_message.prompt,
+                    is_human=True,
+                    placeholder=placeholder_prompt,
+                )
+
+            if doc_prompt_template and doc_prompt_template.similar_docs:
+                values = [x.metadata['url'] for x in doc_prompt_template.similar_docs]
+                placeholder_documents.info(
+                    "Information from the following URLs was provided to the model:\n\n" +\
+                    "\n\n".join(values),
+                    icon="ℹ️",
+                )
+
+            sh.display_totals(
+                cost=last_message.cost,
+                total_tokens=last_message.total_tokens,
+                prompt_tokens=last_message.prompt_tokens,
+                response_tokens=last_message.response_tokens,
+                is_total=False,
+                placeholder=placeholder_message_totals,
+            )
+    elif chat_session.message_history:
+        sh.display_message_history(chat_session.message_history)
 
     if chat_session.message_history:
         # display totals for entire conversation; need to do this after we are done with the last
         # submission
-        # TODO: need to change this to a chain and track all costs not just message costs
-        # need to display an info icon indicating that non-chat message costs/tokens are not
-        # displayed and so won't match totals
         sh.display_totals(
             cost=chat_session.cost,
             total_tokens=chat_session.total_tokens,
-            prompt_tokens=chat_session.prompt_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display  # noqa
-            response_tokens=chat_session.response_tokens,  # TODO: should we add this to Session/Chain? or does it make sense to display # noqa
+            prompt_tokens=chat_session.prompt_tokens,
+            response_tokens=chat_session.response_tokens,
             is_total=True,
             placeholder=result_placeholder,
         )

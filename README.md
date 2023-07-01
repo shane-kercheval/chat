@@ -28,9 +28,10 @@ STACK_OVERFLOW_KEY=...
 - Prompt templates allow the user to quickly create different prompts by filling in information from the required fields. For example, the prompt `Create doc strings` requires a python function and then wraps that function in a predefined prompt. 
 - prompt templates are defined in yaml files located in `source/prompt_templates`. Adding a new yaml file will automatically add the prompt to the drop-down in the app.
 
-# Feature Roadmap
+# Feature Improvements
 
-- [ ] settings to adjust DuckDuckGoSearch options
+- [ ] track conversation history (i.e. cache `Session`s)
+- [ ] add settings to adjust DuckDuckGoSearch options
     - [ ] number of web-search results to scrape and store (default is 3)
     - [ ] size of document chunks (default is 500 characters)
     - [ ] number of documents chunks to insert into prompt (default is 3)

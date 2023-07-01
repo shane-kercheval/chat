@@ -1,17 +1,15 @@
 name: Create doc strings
 category: code
 template: |
-  Create doc strings and type hints for the following python function. It should be in the format:
+  Create a doc string for the following python function. Only return the doc string, not the function. It should be in the format:
 
   ```
-  def func(variable_a: str) -> int:
-      """
-      <This is the description>
+  """
+  <This is the description>
 
-      Args:
-          variable_a: <description of variable_a>  
-      """
-      return 1
+  Args:
+      variable_a: <description of variable_a>  
+  """
   ```
 
   Here is the function:
