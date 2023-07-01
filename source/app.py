@@ -50,13 +50,15 @@ def initialize() -> None:
         # the `Clear` button (or page refresh) clears the session
         st.session_state.chat_session = Session()
 
+    # the user_input state caches the value from the text-box where the user enters their question
+    # we need this for updating the text-box from the prompt-templates
+    if 'user_input' not in st.session_state:
+        st.session_state.user_input = ''
+
 
 def main() -> None:
     """Defines the application structure and behavior."""
     initialize()
-    # the user_input_state caches the value from the text-box where the user enters their question
-    # we need this for updating the text-box from the prompt-templates
-    user_input_state = st.session_state.setdefault('state', {'value': ''})
 
     with st.sidebar:
         st.markdown('# Options')
@@ -94,12 +96,12 @@ def main() -> None:
                 create_message_submit = st.form_submit_button(label='Create message')
 
             if create_message_submit:
-                chat_message = prompt_template
+                prompt = prompt_template
                 # replace all instances of `{{field}}` with the value from the user
                 for field, value in field_values:
-                    chat_message = chat_message.replace("{{" + field + "}}", value)
+                    prompt = prompt.replace("{{" + field + "}}", value)
 
-                user_input_state['value'] = chat_message
+                st.session_state.user_input = prompt
 
             st.markdown('### Template:')
             st.sidebar.text(prompt_template)
@@ -110,7 +112,7 @@ def main() -> None:
         user_input = st.text_area(
             "<label should be hidden>",
             key='chat_message',
-            value=user_input_state['value'],
+            value=st.session_state.user_input,
             placeholder="Ask a question.",
             height=150,
         )
@@ -137,12 +139,11 @@ def main() -> None:
         else:
             use_stack_overflow = False
     with col_clear:
-        clear_button = st.button("Clear")
+        clear_button = st.button("Clear Session")
         if clear_button:
-            st.session_state['chat_session'] = Session()
+            st.session_state.chat_session = Session()
 
     sh.display_horizontal_line()
-    chat_session = st.session_state.get('chat_session', Session())
 
     # define the placeholders for the next chat prompt/response so that we can place them at the
     # tope of the (previous) messages
@@ -157,6 +158,7 @@ def main() -> None:
             placeholder_message_totals = st.empty()
 
         with st.spinner("Loading..."):
+            chat_session = st.session_state.chat_session
             if chat_session.message_history:
                 sh.display_message_history(chat_session.message_history)
 
@@ -211,17 +213,17 @@ def main() -> None:
                 is_total=False,
                 placeholder=placeholder_message_totals,
             )
-    elif chat_session.message_history:
-        sh.display_message_history(chat_session.message_history)
+    elif st.session_state.chat_session.message_history:
+        sh.display_message_history(st.session_state.chat_session.message_history)
 
-    if chat_session.message_history:
+    if st.session_state.chat_session.message_history:
         # display totals for entire conversation; need to do this after we are done with the last
         # submission
         sh.display_totals(
-            cost=chat_session.cost,
-            total_tokens=chat_session.total_tokens,
-            prompt_tokens=chat_session.prompt_tokens,
-            response_tokens=chat_session.response_tokens,
+            cost=st.session_state.chat_session.cost,
+            total_tokens=st.session_state.chat_session.total_tokens,
+            prompt_tokens=st.session_state.chat_session.prompt_tokens,
+            response_tokens=st.session_state.chat_session.response_tokens,
             is_total=True,
             placeholder=result_placeholder,
         )
