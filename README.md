@@ -23,8 +23,10 @@ STACK_OVERFLOW_KEY=...
 - `make docker_run`
 - open browser to `http://localhost:8501`
 
-
 ## Prompt Templates
+
+- Prompt templates allow the user to quickly create different prompts by filling in information from the required fields. For example, the prompt `Create doc strings` requires a python function and then wraps that function in a predefined prompt. 
+- prompt templates are defined in yaml files located in `source/prompt_templates`. Adding a new yaml file will automatically add the prompt to the drop-down in the app.
 
 # Feature Roadmap
 
@@ -34,12 +36,9 @@ STACK_OVERFLOW_KEY=...
     - [ ] number of documents chunks to insert into prompt (default is 3)
 - [ ] `total_tokens` might not match `prompt_tokens` plus `response_tokens`. If there are other types of tokens used, for example, tokens used for embeddings.
 - [ ] add settings and code to control memory e.g `llm_chain.memory.MemoryBufferMessageWindow`
-- [ ] bug
-# TODO: document
-# Known issues;
-# Once you modify the chat message, the prompt template message will know fill the text-box
-# Steps: fill out fields in prompt template; hit "Create Message"; Chat message is updated;
-# change one or more fields; hit "Create Message"; Chat message is still updated; Modify chat
-# message; now click "Create Message" from prompt template; Chat message will not update;
-# however, if you change one or more of field values in the prompt template and hit Create Message
-# then the chat message will update as expected.
+- [ ] BUG: Once you modify the chat message, the prompt template message will not fill the text-box. Steps to reproduce: 
+    - fill out fields in prompt template; hit "Create Message"; the chat message is updated
+    - change one or more fields in the prompt template; hit "Create Message"; the chat message is still updated, as expected
+    - modify the chat message
+    - now click "Create Message" from prompt template; Chat message will not update
+    - however, if you change one or more of field values in the prompt template and hit "Create Message" then the chat message will update as expected.
