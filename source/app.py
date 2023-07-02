@@ -38,6 +38,16 @@ def load_prompt_templates() -> dict:
             templates[template_name] = yaml_data
     return templates
 
+def _create_new_session() -> tuple[Session, OpenAIChat]:
+    """
+    Creates a new session and model. We need to cache the model so that it retains the
+    history/messages of the entire conversation (until we clear the session).
+
+    Essentially, we'll be keeping the same Session and OpenAIChat objects for the duration of the
+    session, but we'll be building up different chains based on the options (e.g. user selecting
+    option to use DuckDuckGo search.)
+    """
+    return Session(), OpenAIChat(model_name='gpt-3.5-turbo')
 
 def initialize() -> None:
     """Initializes environment and app."""
@@ -48,7 +58,7 @@ def initialize() -> None:
     if 'chat_session' not in st.session_state:
         # chat_session tracks the history of messages/chains used during the session
         # the `Clear` button (or page refresh) clears the session
-        st.session_state.chat_session = Session()
+        st.session_state.chat_session = _create_new_session()
 
     # the user_input state caches the value from the text-box where the user enters their question
     # we need this for updating the text-box from the prompt-templates
@@ -141,7 +151,7 @@ def main() -> None:
     with col_clear:
         clear_button = st.button("Clear Session")
         if clear_button:
-            st.session_state.chat_session = Session()
+            st.session_state.chat_session = _create_new_session()
 
     sh.display_horizontal_line()
 
@@ -158,7 +168,7 @@ def main() -> None:
             placeholder_message_totals = st.empty()
 
         with st.spinner("Loading..."):
-            chat_session = st.session_state.chat_session
+            chat_session, chat_model = st.session_state.chat_session
             if chat_session.message_history:
                 sh.display_message_history(chat_session.message_history)
 
@@ -176,7 +186,7 @@ def main() -> None:
 
             chain, doc_prompt_template = sh.build_chain(
                 # chat_model=sh.MockChatModel(model_name='mock'),
-                chat_model=OpenAIChat(model_name='gpt-3.5-turbo'),
+                chat_model=chat_model,
                 model_name=sh.get_model_name(model_display_name=openai_model_name),
                 max_tokens=max_tokens,
                 temperature=temperature,
@@ -213,17 +223,18 @@ def main() -> None:
                 is_total=False,
                 placeholder=placeholder_message_totals,
             )
-    elif st.session_state.chat_session.message_history:
-        sh.display_message_history(st.session_state.chat_session.message_history)
+    elif st.session_state.chat_session[0].message_history:
+        sh.display_message_history(st.session_state.chat_session[0].message_history)
 
-    if st.session_state.chat_session.message_history:
+    chat_session, _ = st.session_state.chat_session
+    if chat_session.message_history:
         # display totals for entire conversation; need to do this after we are done with the last
         # submission
         sh.display_totals(
-            cost=st.session_state.chat_session.cost,
-            total_tokens=st.session_state.chat_session.total_tokens,
-            prompt_tokens=st.session_state.chat_session.prompt_tokens,
-            response_tokens=st.session_state.chat_session.response_tokens,
+            cost=chat_session.cost,
+            total_tokens=chat_session.total_tokens,
+            prompt_tokens=chat_session.prompt_tokens,
+            response_tokens=chat_session.response_tokens,
             is_total=True,
             placeholder=result_placeholder,
         )

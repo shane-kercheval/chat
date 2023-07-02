@@ -35,6 +35,7 @@ STACK_OVERFLOW_KEY=...
     - [ ] number of documents chunks to insert into prompt (default is 3)
 - [ ] `total_tokens` might not match `prompt_tokens` plus `response_tokens`. If there are other types of tokens used, for example, tokens used for embeddings.
 - [ ] add settings and code to control memory e.g `llm_chain.memory.MemoryBufferMessageWindow`
+- [ ] when using `cmd + enter` shortcut during the first message, streaming doesn't work; it works on all subsequent messages
 - [ ] BUG: Once you modify the chat message, the prompt template message will not fill the text-box. Steps to reproduce: 
     - fill out fields in prompt template; hit "Create Message"; the chat message is updated
     - change one or more fields in the prompt template; hit "Create Message"; the chat message is still updated, as expected
