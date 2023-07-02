@@ -16,11 +16,11 @@ Features:
     - In order to use the `Use Stack Overflow` flag, you must have an entry for the `STACK_OVERFLOW_KEY` environment variable. Create an account and app at [Stack Apps](https://stackapps.com/) and use the `key` that is generated (not the `secret`). Otherwise you, can omit
     
 ```
-OPENAI_API_KEY=....
-STACK_OVERFLOW_KEY=...
+OPENAI_API_KEY=<required>
+STACK_OVERFLOW_KEY=<optional>
 ```
 
-- `make docker_run`
+- run the following command in the terminal: `make docker_run`
 - open browser to `http://localhost:8501`
 
 ## Prompt Templates
