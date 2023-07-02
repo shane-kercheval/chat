@@ -1,9 +1,6 @@
 This streamlit app gives basic chat functionality using the [llm-chain package](https://github.com/shane-kercheval/llm-chain) and OpenAI.
 
-![demo](./chat-demo.gif)
-
-![screen](./chat_demo_1.mov)
-
+![demo](./chat_demo_1.gif)
 
 Features:
 
