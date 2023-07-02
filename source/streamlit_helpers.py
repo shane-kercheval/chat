@@ -6,7 +6,7 @@ from collections.abc import Callable
 import streamlit as st
 from llm_chain.tools import StackQuestion, scrape_url
 from llm_chain.base import ChatModel, MessageRecord, Document, Chain, Value
-from llm_chain.models import OpenAIChat, StreamingRecord
+from llm_chain.models import OpenAIChat, StreamingEvent
 from llm_chain.tools import DuckDuckGoSearch, split_documents, search_stack_overflow
 from llm_chain.indexes import ChromaDocumentIndex
 from llm_chain.prompt_templates import DocSearchTemplate
@@ -255,7 +255,7 @@ def build_chain(
         model_name: str,
         max_tokens: int,
         temperature: float,
-        streaming_callback: Callable[[StreamingRecord], None],
+        streaming_callback: Callable[[StreamingEvent], None],
         use_web_search: bool,
         use_stack_overflow: bool,
         ) -> Chain:

@@ -8,7 +8,7 @@ import yaml
 import streamlit as st
 import streamlit.components.v1 as components
 from llm_chain.base import Session
-from llm_chain.models import OpenAIChat, StreamingRecord
+from llm_chain.models import OpenAIChat, StreamingEvent
 import source.streamlit_helpers as sh
 
 
@@ -165,7 +165,7 @@ def main() -> None:
             sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
 
             message = ""
-            def _update_message(x: StreamingRecord) -> None:
+            def _update_message(x: StreamingEvent) -> None:
                 nonlocal message
                 message += x.response
                 sh.display_chat_message(
