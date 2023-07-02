@@ -2,6 +2,9 @@ This streamlit app gives basic chat functionality using the [llm-chain package](
 
 ![demo](./chat-demo.gif)
 
+![screen](./chat_demo_1.mov)
+
+
 Features:
 
 - text streaming
