@@ -169,8 +169,8 @@ def main() -> None:
 
         with st.spinner("Loading..."):
             chat_session, chat_model = st.session_state.chat_session
-            if chat_session.message_history:
-                sh.display_message_history(chat_session.message_history)
+            if chat_session.exchange_history:
+                sh.display_exchange_history(chat_session.exchange_history)
 
             sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
 
@@ -196,7 +196,7 @@ def main() -> None:
             )
             chat_session.append(chain=chain)
             _ = chat_session(user_input)
-            last_message = chat_session.message_history[-1]
+            last_message = chat_session.exchange_history[-1]
             if last_message.prompt != user_input:
                 # if prompt was updated then make some indication that the underlying prompt
                 # has changed
@@ -223,11 +223,11 @@ def main() -> None:
                 is_total=False,
                 placeholder=placeholder_message_totals,
             )
-    elif st.session_state.chat_session[0].message_history:
-        sh.display_message_history(st.session_state.chat_session[0].message_history)
+    elif st.session_state.chat_session[0].exchange_history:
+        sh.display_exchange_history(st.session_state.chat_session[0].exchange_history)
 
     chat_session, _ = st.session_state.chat_session
-    if chat_session.message_history:
+    if chat_session.exchange_history:
         # display totals for entire conversation; need to do this after we are done with the last
         # submission
         sh.display_totals(

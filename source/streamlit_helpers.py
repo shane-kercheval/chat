@@ -5,7 +5,7 @@ from typing import TypeVar
 from collections.abc import Callable
 import streamlit as st
 from llm_chain.tools import StackQuestion, scrape_url
-from llm_chain.base import ChatModel, MessageRecord, Document, Chain, Value
+from llm_chain.base import PromptModel, ExchangeRecord, Document, Chain, Value
 from llm_chain.models import OpenAIChat, StreamingEvent
 from llm_chain.tools import DuckDuckGoSearch, split_documents, search_stack_overflow
 from llm_chain.indexes import ChromaDocumentIndex
@@ -122,9 +122,9 @@ def display_chat_message(
         st.markdown(message_html, unsafe_allow_html=True)
 
 
-def display_message_history(message_history: list[MessageRecord]) -> None:
+def display_exchange_history(exchange_history: list[ExchangeRecord]) -> None:
     """Displays the message history and corresponding cost and token usage for each mesage."""
-    chat_history = list(reversed(message_history))
+    chat_history = list(reversed(exchange_history))
     for chat in chat_history:
         col_messages, col_totals = st.columns([5, 1])
         with col_messages:
@@ -320,7 +320,7 @@ def _create_fake_message() -> str:
     return ' '.join([fake.word() for _ in range(random.randint(10, 100))])
 
 
-class MockChatModel(ChatModel):
+class MockPromptModel(PromptModel):
     """Mock Chat model that creates takes a prompt and returns fake message; used for dev."""
 
     def __init__(self, model_name: str, temperature: float = 0, max_records: int = 0):
@@ -329,8 +329,8 @@ class MockChatModel(ChatModel):
         self.temperature = temperature
         self.max_records = max_records
 
-    def _run(self, prompt: str) -> MessageRecord:
-        return MessageRecord(
+    def _run(self, prompt: str) -> ExchangeRecord:
+        return ExchangeRecord(
             prompt=prompt,
             response=_create_fake_message(),
             cost=1.25,
