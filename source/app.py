@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 import yaml
 import streamlit as st
 import streamlit.components.v1 as components
-from llm_chain.base import Session
-from llm_chain.models import OpenAIChat, StreamingEvent
+from llm_workflow.base import Session
+from llm_workflow.models import ExchangeRecord, OpenAIChat, StreamingEvent
 import source.streamlit_helpers as sh
 
 
@@ -44,7 +44,7 @@ def _create_new_session() -> tuple[Session, OpenAIChat]:
     history/messages of the entire conversation (until we clear the session).
 
     Essentially, we'll be keeping the same Session and OpenAIChat objects for the duration of the
-    session, but we'll be building up different chains based on the options (e.g. user selecting
+    session, but we'll be building up different workflows based on the options (e.g. user selecting
     option to use DuckDuckGo search.)
     """
     return Session(), OpenAIChat(model_name='gpt-3.5-turbo')
@@ -56,7 +56,7 @@ def initialize() -> None:
     assert os.getenv("OPENAI_API_KEY")
     sh.apply_css()
     if 'chat_session' not in st.session_state:
-        # chat_session tracks the history of messages/chains used during the session
+        # chat_session tracks the history of messages/workflows used during the session
         # the `Clear` button (or page refresh) clears the session
         st.session_state.chat_session = _create_new_session()
 
@@ -169,8 +169,8 @@ def main() -> None:
 
         with st.spinner("Loading..."):
             chat_session, chat_model = st.session_state.chat_session
-            if chat_session.exchange_history:
-                sh.display_exchange_history(chat_session.exchange_history)
+            if chat_session.history(ExchangeRecord):
+                sh.display_exchange_history(chat_session.history(ExchangeRecord))
 
             sh.display_chat_message(user_input, is_human=True, placeholder=placeholder_prompt)
 
@@ -184,7 +184,7 @@ def main() -> None:
                     placeholder=placeholder_response,
                 )
 
-            chain, doc_prompt_template = sh.build_chain(
+            workflow, doc_prompt_template = sh.build_workflow(
                 # chat_model=sh.MockChatModel(model_name='mock'),
                 chat_model=chat_model,
                 model_name=sh.get_model_name(model_display_name=openai_model_name),
@@ -194,13 +194,13 @@ def main() -> None:
                 use_web_search=use_web_search,
                 use_stack_overflow=use_stack_overflow,
             )
-            chat_session.append(chain=chain)
+            chat_session.append(workflow=workflow)
             _ = chat_session(user_input)
-            last_message = chat_session.exchange_history[-1]
+            last_message = chat_session.history(ExchangeRecord)[-1]
             if last_message.prompt != user_input:
                 # if prompt was updated then make some indication that the underlying prompt
                 # has changed
-                placeholder_info.info("The prompt was modified within the chain.", icon="ℹ️")
+                placeholder_info.info("The prompt was modified.", icon="ℹ️")
                 sh.display_chat_message(
                     last_message.prompt,
                     is_human=True,
@@ -223,18 +223,18 @@ def main() -> None:
                 is_total=False,
                 placeholder=placeholder_message_totals,
             )
-    elif st.session_state.chat_session[0].exchange_history:
-        sh.display_exchange_history(st.session_state.chat_session[0].exchange_history)
+    elif st.session_state.chat_session[0].history(ExchangeRecord):
+        sh.display_exchange_history(st.session_state.chat_session[0].history(ExchangeRecord))
 
     chat_session, _ = st.session_state.chat_session
-    if chat_session.exchange_history:
+    if chat_session.history(ExchangeRecord):
         # display totals for entire conversation; need to do this after we are done with the last
         # submission
         sh.display_totals(
-            cost=chat_session.cost,
-            total_tokens=chat_session.total_tokens,
-            prompt_tokens=chat_session.prompt_tokens,
-            response_tokens=chat_session.response_tokens,
+            cost=chat_session.sum('cost'),
+            total_tokens=chat_session.sum('total_tokens'),
+            prompt_tokens=chat_session.sum('prompt_tokens'),
+            response_tokens=chat_session.sum('response_tokens'),
             is_total=True,
             placeholder=result_placeholder,
         )

@@ -1,6 +1,9 @@
+chromadb
+duckduckgo-search
 faker
 jupyter-contrib-nbextensions
-llm-chain
+llm-workflow
+markdownify
 notebook
 openai
 pydantic

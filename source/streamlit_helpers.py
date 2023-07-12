@@ -4,12 +4,11 @@ import re
 from typing import TypeVar
 from collections.abc import Callable
 import streamlit as st
-from llm_chain.tools import StackQuestion, scrape_url
-from llm_chain.base import PromptModel, ExchangeRecord, Document, Chain, Value
-from llm_chain.models import OpenAIChat, StreamingEvent
-from llm_chain.tools import DuckDuckGoSearch, split_documents, search_stack_overflow
-from llm_chain.indexes import ChromaDocumentIndex
-from llm_chain.prompt_templates import DocSearchTemplate
+from llm_workflow.base import Document, Workflow, Value
+from llm_workflow.models import ExchangeRecord, OpenAIChat, PromptModel, StreamingEvent
+from llm_workflow.utilities import DuckDuckGoSearch, split_documents, StackOverflowSearch, StackQuestion, scrape_url
+from llm_workflow.indexes import ChromaDocumentIndex
+from llm_workflow.prompt_templates import DocSearchTemplate
 
 
 StreamlitWidget = TypeVar('StreamlitWidget')
@@ -227,7 +226,7 @@ def scrape_urls(search_results: dict) -> list[Document]:
 
 def stack_overflow_results_to_docs(results: list[StackQuestion]) -> list[Document]:
     """
-    Takes a list of results from the `search_stack_overflow` function, and returns a corresponding
+    Takes a list of results from the `StackOverflowSearch` class, and returns a corresponding
     list of Document objects.
     """
     answers = []
@@ -250,7 +249,7 @@ def get_model_name(model_display_name: str) -> str:
     raise ValueError(model_display_name)
 
 
-def build_chain(
+def build_workflow(
         chat_model: OpenAIChat,
         model_name: str,
         max_tokens: int,
@@ -258,11 +257,11 @@ def build_chain(
         streaming_callback: Callable[[StreamingEvent], None],
         use_web_search: bool,
         use_stack_overflow: bool,
-        ) -> Chain:
+        ) -> Workflow:
     """
-    Build a Chain based on the options provided.
+    Build a Workflow based on the options provided.
 
-    Returns both the chain and the DocSearchTemplate object (if web-search or
+    Returns both the workflow and the DocSearchTemplate object (if web-search or
     stack-overflow-search) is used so that we can display the URLs from the search to the end-user.
     """
     chat_model.model_name = model_name
@@ -277,9 +276,9 @@ def build_chain(
         # Value is a callable; when called with a value it caches and returns the value
         # when called without a value
         prompt_cache = Value()
-        links = []
+        tasks = []
         if use_web_search:
-            links += [
+            tasks += [
                 prompt_cache,  # input is user's question; caches and returns
                 DuckDuckGoSearch(top_n=3),  # get the urls of the top search results
                 scrape_urls,  # scrape the websites corresponding to the URLs
@@ -287,7 +286,7 @@ def build_chain(
                 document_index,  # add docs to doc-index
             ]
         if use_stack_overflow:
-            links += [
+            tasks += [
                 # if use_web_search is false, the original question will get passed in
                 # to prompt_cache which will cache and return it;
                 # if use_web_search is true, then prompt_cache will have already been set
@@ -295,21 +294,21 @@ def build_chain(
                 # previously cached value (i.e. the original question) and pass that to
                 # the search_query
                 prompt_cache,
-                lambda search_query: search_stack_overflow(query=search_query, max_questions=2, max_answers=1),  # noqa
+                StackOverflowSearch(max_questions=2, max_answers=1),
                 stack_overflow_results_to_docs,
                 # we almost certainly want to keep the entire answer
                 lambda docs: split_documents(docs=docs, max_chars=2_500),
                 document_index,  # add docs to doc-index
             ]
-        links += [
+        tasks += [
             prompt_cache,
             doc_prompt_template,
             chat_model,
         ]
     else:
-        links = [chat_model]
+        tasks = [chat_model]
 
-    return Chain(links=links), doc_prompt_template
+    return Workflow(tasks=tasks), doc_prompt_template
 
 
 def _create_fake_message() -> str:
