@@ -74,6 +74,7 @@ def _create_new_session(model_name: str) -> tuple[Session, PromptModel]:
     """
     return Session(), get_model(model_name=model_name)
 
+
 def initialize() -> None:
     """Initializes environment and app."""
     # Load the OpenAI API key from the environment variable
