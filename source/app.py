@@ -8,7 +8,9 @@ import yaml
 import streamlit as st
 import streamlit.components.v1 as components
 from llm_workflow.base import Session
-from llm_workflow.models import ExchangeRecord, OpenAIChat, StreamingEvent
+from llm_workflow.models import ExchangeRecord, StreamingEvent, PromptModel
+from llm_workflow.openai import OpenAIChat
+from llm_workflow.hugging_face import HuggingFaceEndpointChat, get_tokenizer, num_tokens
 import source.streamlit_helpers as sh
 
 
@@ -38,7 +40,30 @@ def load_prompt_templates() -> dict:
             templates[template_name] = yaml_data
     return templates
 
-def _create_new_session() -> tuple[Session, OpenAIChat]:
+
+def get_model(model_name: str) -> PromptModel:
+    """
+    Args:
+        model_name: the name of the model from the dropdown.
+    """
+    if 'GPT' in model_name:
+        model = OpenAIChat(model_name=sh.MODEL_NAME_LOOKUP[model_name])
+    elif 'HF Endpoint' in model_name:
+        tokenizer = get_tokenizer('meta-llama/Llama-2-7b-chat-hf')
+
+        def cal_num_tokens(text: str) -> int:
+            return num_tokens(text, tokenizer)
+
+        model = HuggingFaceEndpointChat(
+            endpoint_url=os.getenv(sh.MODEL_NAME_LOOKUP[model_name]),
+            calculate_num_tokens=cal_num_tokens,
+        )
+    else:
+        raise ValueError(f'invalid model {model_name}')
+    return model
+
+
+def _create_new_session(model_name: str) -> tuple[Session, PromptModel]:
     """
     Creates a new session and model. We need to cache the model so that it retains the
     history/messages of the entire conversation (until we clear the session).
@@ -47,7 +72,7 @@ def _create_new_session() -> tuple[Session, OpenAIChat]:
     session, but we'll be building up different workflows based on the options (e.g. user selecting
     option to use DuckDuckGo search.)
     """
-    return Session(), OpenAIChat(model_name='gpt-3.5-turbo')
+    return Session(), get_model(model_name=model_name)
 
 def initialize() -> None:
     """Initializes environment and app."""
@@ -55,11 +80,6 @@ def initialize() -> None:
     load_dotenv()
     assert os.getenv("OPENAI_API_KEY")
     sh.apply_css()
-    if 'chat_session' not in st.session_state:
-        # chat_session tracks the history of messages/workflows used during the session
-        # the `Clear` button (or page refresh) clears the session
-        st.session_state.chat_session = _create_new_session()
-
     # the user_input state caches the value from the text-box where the user enters their question
     # we need this for updating the text-box from the prompt-templates
     if 'user_input' not in st.session_state:
@@ -72,7 +92,12 @@ def main() -> None:
 
     with st.sidebar:
         st.markdown('# Options')
-        openai_model_name = st.selectbox(label="Model", options=('GPT-3.5', 'GPT-4'))
+        model_name = st.selectbox(label="Model", options=list(sh.MODEL_NAME_LOOKUP.keys()))
+        if 'model_name' not in st.session_state or st.session_state.model_name != model_name:
+            # if the model name changed, then we need to create a new session and model
+            st.session_state.chat_session = _create_new_session(model_name=model_name)
+            st.session_state.model_name = model_name
+
         with st.expander("Additional Options"):
             temperature = st.slider(
                 label="Temperature",
@@ -129,7 +154,7 @@ def main() -> None:
     with col_conversation_totals:
         result_placeholder = st.empty()
 
-    col_submit,  col_web_search, col_stack_search, col_clear =  st.columns([2, 4, 4, 2])
+    col_submit, col_web_search, col_stack_search, col_clear =  st.columns([2, 4, 4, 2])
     with col_submit:
         submit_button = st.button("Submit")
     with col_web_search:
@@ -151,7 +176,7 @@ def main() -> None:
     with col_clear:
         clear_button = st.button("Clear Session")
         if clear_button:
-            st.session_state.chat_session = _create_new_session()
+            st.session_state.chat_session = _create_new_session(model_name=model_name)
 
     sh.display_horizontal_line()
 
@@ -179,7 +204,7 @@ def main() -> None:
                 nonlocal message
                 message += x.response
                 sh.display_chat_message(
-                    message,
+                    message.replace("```", "\n```\n"),
                     is_human=False,
                     placeholder=placeholder_response,
                 )
@@ -187,7 +212,6 @@ def main() -> None:
             workflow, doc_prompt_template = sh.build_workflow(
                 # chat_model=sh.MockChatModel(model_name='mock'),
                 chat_model=chat_model,
-                model_name=sh.get_model_name(model_display_name=openai_model_name),
                 max_tokens=max_tokens,
                 temperature=temperature,
                 streaming_callback=_update_message,

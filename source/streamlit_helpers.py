@@ -1,17 +1,39 @@
 """Helper functions for streamlit app."""
 # from functools import cache
+import os
 import re
 from typing import TypeVar
 from collections.abc import Callable
 import streamlit as st
 from llm_workflow.base import Document, Workflow, Value
-from llm_workflow.models import ExchangeRecord, OpenAIChat, PromptModel, StreamingEvent
-from llm_workflow.utilities import DuckDuckGoSearch, split_documents, StackOverflowSearch, StackQuestion, scrape_url
+from llm_workflow.models import ExchangeRecord, PromptModel, StreamingEvent
+from llm_workflow.utilities import (
+    DuckDuckGoSearch,
+    split_documents,
+    StackOverflowSearch,
+    StackQuestion,
+    scrape_url,
+)
 from llm_workflow.indexes import ChromaDocumentIndex
 from llm_workflow.prompt_templates import DocSearchTemplate
 
 
 StreamlitWidget = TypeVar('StreamlitWidget')
+
+MODEL_NAME_LOOKUP = {
+    'GPT 3.5 - 4K': 'gpt-3.5-turbo',
+    'GPT 3.5 - 16K': 'gpt-3.5-turbo-16k',
+    'GPT 4.0 - 8K': 'gpt-4',
+    'GPT 4.0 - 32K': 'gpt-4-32k',
+}
+
+if os.getenv('HUGGING_FACE_API_KEY'):
+    if os.getenv('HUGGING_FACE_ENDPOINT_LLAMA2_7B'):
+        MODEL_NAME_LOOKUP['HF Endpoint - Llama 2 - 7B'] = 'HUGGING_FACE_ENDPOINT_LLAMA2_7B'
+    if os.getenv('HUGGING_FACE_ENDPOINT_CODELLAMA_7B'):
+        MODEL_NAME_LOOKUP['HF Endpoint - CodeLamma - 7B'] = 'HUGGING_FACE_ENDPOINT_CODELLAMA_7B'
+    if os.getenv('HUGGING_FACE_ENDPOINT_MISTRAL_7B'):
+        MODEL_NAME_LOOKUP['HF Endpoint - Mistral - 7B'] = 'HUGGING_FACE_ENDPOINT_MISTRAL_7B'
 
 
 def apply_css() -> None:
@@ -113,6 +135,7 @@ def display_chat_message(
             a placeholder is widget e.g. result from st.empty(); if provided, we will clear the
             widget and write the markdown to that widget rather using `st.markdown`.
     """
+    message = message.replace("```", "\n```\n")
     message_html = f"<div class='{'sender' if is_human else 'receiver'}'>{message}</div>"
     if placeholder:
         placeholder.empty()
@@ -186,22 +209,25 @@ def display_totals(
     """
     total_label = 'Total' if is_total else 'Message'
     round_by = 4 if is_total else 6
-    cost_string = f"""
-    <b>{total_label} Cost</b>: <code>${cost:.{round_by}f}</code><br>
-    """
+    if cost:
+        cost_string = f"""
+        <b>{total_label} Cost</b>: <code>${cost:.{round_by}f}</code><br>
+        """
+    else:
+        cost_string = ''
     token_string = f"""
     {total_label} Tokens: <code>{total_tokens:,}</code><br>
     Prompt Tokens: <code>{prompt_tokens:,}</code><br>
     Response Tokens: <code>{response_tokens:,}</code><br>
     """
-    cost_html = f"""
-    <p style="font-size: 13px; text-align: right">{cost_string}</p>
-    <p style="font-size: 12px; text-align: right">{token_string}</p>
-    """
+    total_html = ''
+    if cost:
+       total_html += f'<p style="font-size: 13px; text-align: right">{cost_string}</p>'
+    total_html += f'<p style="font-size: 12px; text-align: right">{token_string}</p>'
     if placeholder:
-        placeholder.markdown(cost_html, unsafe_allow_html=True)
+        placeholder.markdown(total_html, unsafe_allow_html=True)
     else:
-        st.markdown(cost_html, unsafe_allow_html=True)
+        st.markdown(total_html, unsafe_allow_html=True)
 
 
 def scrape_urls(search_results: dict) -> list[Document]:
@@ -240,18 +266,8 @@ def stack_overflow_results_to_docs(results: list[StackQuestion]) -> list[Documen
     return answers
 
 
-def get_model_name(model_display_name: str) -> str:
-    """Given the model name displayed o the user, return the actual model name."""
-    if model_display_name == 'GPT-3.5':
-        return 'gpt-3.5-turbo'
-    if model_display_name == 'GPT-4':
-        return 'gpt-4'
-    raise ValueError(model_display_name)
-
-
 def build_workflow(
-        chat_model: OpenAIChat,
-        model_name: str,
+        chat_model: PromptModel,
         max_tokens: int,
         temperature: float,
         streaming_callback: Callable[[StreamingEvent], None],
@@ -264,7 +280,6 @@ def build_workflow(
     Returns both the workflow and the DocSearchTemplate object (if web-search or
     stack-overflow-search) is used so that we can display the URLs from the search to the end-user.
     """
-    chat_model.model_name = model_name
     chat_model.temperature = temperature
     chat_model.max_tokens = max_tokens
     chat_model.streaming_callback = streaming_callback
