@@ -15,7 +15,7 @@ import source.streamlit_helpers as sh
 
 
 PROMPT_TEMPLATE_DIR = '/code/source/prompt_templates/'
-
+DEFAULT_SYSTEM_MESSAGE = 'You are a helpful assistant. Be concise but as helpful and accurate as possible.'  # noqa
 
 st.set_page_config(
     page_title="ChatGPT",
@@ -41,13 +41,17 @@ def load_prompt_templates() -> dict:
     return templates
 
 
-def get_model(model_name: str) -> PromptModel:
+def get_model(model_name: str, system_message: str) -> PromptModel:
     """
     Args:
         model_name: the name of the model from the dropdown.
+        system_message: the system message of the model.
     """
     if 'GPT' in model_name:
-        model = OpenAIChat(model_name=sh.MODEL_NAME_LOOKUP[model_name])
+        model = OpenAIChat(
+            model_name=sh.MODEL_NAME_LOOKUP[model_name],
+            system_message=system_message,
+        )
     elif 'HF Endpoint' in model_name:
         tokenizer = get_tokenizer('meta-llama/Llama-2-7b-chat-hf')
 
@@ -57,13 +61,14 @@ def get_model(model_name: str) -> PromptModel:
         model = HuggingFaceEndpointChat(
             endpoint_url=os.getenv(sh.MODEL_NAME_LOOKUP[model_name]),
             calculate_num_tokens=cal_num_tokens,
+            system_message=system_message,
         )
     else:
         raise ValueError(f'invalid model {model_name}')
     return model
 
 
-def _create_new_session(model_name: str) -> tuple[Session, PromptModel]:
+def _create_new_session(model_name: str, system_message: str) -> tuple[Session, PromptModel]:
     """
     Creates a new session and model. We need to cache the model so that it retains the
     history/messages of the entire conversation (until we clear the session).
@@ -72,7 +77,7 @@ def _create_new_session(model_name: str) -> tuple[Session, PromptModel]:
     session, but we'll be building up different workflows based on the options (e.g. user selecting
     option to use DuckDuckGo search.)
     """
-    return Session(), get_model(model_name=model_name)
+    return Session(), get_model(model_name=model_name, system_message=system_message)
 
 
 def initialize() -> None:
@@ -85,6 +90,8 @@ def initialize() -> None:
     # we need this for updating the text-box from the prompt-templates
     if 'user_input' not in st.session_state:
         st.session_state.user_input = ''
+    if 'system_message' not in st.session_state:
+        st.session_state.system_message = DEFAULT_SYSTEM_MESSAGE
 
 
 def main() -> None:
@@ -96,7 +103,10 @@ def main() -> None:
         model_name = st.selectbox(label="Model", options=list(sh.MODEL_NAME_LOOKUP.keys()))
         if 'model_name' not in st.session_state or st.session_state.model_name != model_name:
             # if the model name changed, then we need to create a new session and model
-            st.session_state.chat_session = _create_new_session(model_name=model_name)
+            st.session_state.chat_session = _create_new_session(
+                model_name=model_name,
+                system_message=st.session_state.system_message,
+            )
             st.session_state.model_name = model_name
 
         with st.expander("Additional Options"):
@@ -107,9 +117,19 @@ def main() -> None:
             )
             max_tokens = st.slider(
                 label="Max Tokens",
-                min_value=100, max_value=3000, value=2000, step=100,
+                min_value=100, max_value=100_000, value=2000, step=100,
                 help="The maximum number of tokens to generate in the completion.",
             )
+            system_message = st.text_area(
+                "System Message",
+                key='system_message',
+                value=DEFAULT_SYSTEM_MESSAGE,  # noqa
+                # placeholder="You are a helpful assistant. Be concise but as helpful and accurate as possible.",  # noqa
+                height=100,
+            )
+            if system_message != st.session_state.system_message:
+                st.session_state.system_message = system_message
+
 
         st.markdown("# Prompt Template")
         prompt_templates = load_prompt_templates()
@@ -177,7 +197,10 @@ def main() -> None:
     with col_clear:
         clear_button = st.button("Clear Session")
         if clear_button:
-            st.session_state.chat_session = _create_new_session(model_name=model_name)
+            st.session_state.chat_session = _create_new_session(
+                model_name=model_name,
+                system_message=st.session_state.system_message,
+            )
 
     sh.display_horizontal_line()
 
