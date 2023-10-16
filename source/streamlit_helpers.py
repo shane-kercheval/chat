@@ -5,8 +5,14 @@ import re
 from typing import TypeVar
 from collections.abc import Callable
 import streamlit as st
-from llm_workflow.base import Document, Workflow, Value
-from llm_workflow.models import ExchangeRecord, PromptModel, StreamingEvent
+from llm_workflow.base import (
+    Document,
+    ExchangeRecord,
+    PromptModel,
+    StreamingEvent,
+    Value,
+    Workflow,
+)
 from llm_workflow.utilities import (
     DuckDuckGoSearch,
     split_documents,
@@ -156,7 +162,7 @@ def display_exchange_history(exchange_history: list[ExchangeRecord]) -> None:
             display_totals(
                 cost=chat.cost,
                 total_tokens=chat.total_tokens,
-                prompt_tokens=chat.prompt_tokens,
+                input_tokens=chat.input_tokens,
                 response_tokens=chat.response_tokens,
                 is_total=False,
             )
@@ -192,7 +198,7 @@ def get_fields_from_template(prompt_template: str) -> list[str]:
 def display_totals(
         cost: float,
         total_tokens: int,
-        prompt_tokens: int,
+        input_tokens: int,
         response_tokens: int,
         is_total: bool,
         placeholder: object | None = None) -> None:
@@ -202,7 +208,7 @@ def display_totals(
     Args:
         cost: cost of all tokens
         total_tokens: number of total tokens
-        prompt_tokens: number of prompt tokens
+        input_tokens: number of input tokens
         response_tokens: number of completion tokens
         is_total: whether or not the total cost of all conversations, or a single conversation
         placeholder: if not None; use this to write results to
@@ -217,7 +223,7 @@ def display_totals(
         cost_string = ''
     token_string = f"""
     {total_label} Tokens: <code>{total_tokens:,}</code><br>
-    Prompt Tokens: <code>{prompt_tokens:,}</code><br>
+    Input Tokens: <code>{input_tokens:,}</code><br>
     Response Tokens: <code>{response_tokens:,}</code><br>
     """
     total_html = ''
@@ -280,6 +286,8 @@ def build_workflow(
     Returns both the workflow and the DocSearchTemplate object (if web-search or
     stack-overflow-search) is used so that we can display the URLs from the search to the end-user.
     """
+    if temperature == 0:
+        temperature = 0.001
     chat_model.temperature = temperature
     chat_model.max_tokens = max_tokens
     chat_model.streaming_callback = streaming_callback
@@ -348,7 +356,7 @@ class MockPromptModel(PromptModel):
             prompt=prompt,
             response=_create_fake_message(),
             cost=1.25,
-            prompt_tokens=100,
+            input_tokens=100,
             response_tokens=75,
             total_tokens=175,
         )

@@ -7,8 +7,7 @@ from dotenv import load_dotenv
 import yaml
 import streamlit as st
 import streamlit.components.v1 as components
-from llm_workflow.base import Session
-from llm_workflow.models import ExchangeRecord, StreamingEvent, PromptModel
+from llm_workflow.base import Session, ExchangeRecord, StreamingEvent, PromptModel
 from llm_workflow.openai import OpenAIChat
 from llm_workflow.hugging_face import HuggingFaceEndpointChat, get_tokenizer, num_tokens
 import source.streamlit_helpers as sh
@@ -60,7 +59,7 @@ def get_model(model_name: str, system_message: str) -> PromptModel:
 
         model = HuggingFaceEndpointChat(
             endpoint_url=os.getenv(sh.MODEL_NAME_LOOKUP[model_name]),
-            calculate_num_tokens=cal_num_tokens,
+            token_calculator=cal_num_tokens,
             system_message=system_message,
         )
     else:
@@ -266,7 +265,7 @@ def main() -> None:
             sh.display_totals(
                 cost=last_message.cost,
                 total_tokens=last_message.total_tokens,
-                prompt_tokens=last_message.prompt_tokens,
+                input_tokens=last_message.input_tokens,
                 response_tokens=last_message.response_tokens,
                 is_total=False,
                 placeholder=placeholder_message_totals,
@@ -281,7 +280,7 @@ def main() -> None:
         sh.display_totals(
             cost=chat_session.sum('cost'),
             total_tokens=chat_session.sum('total_tokens'),
-            prompt_tokens=chat_session.sum('prompt_tokens'),
+            input_tokens=chat_session.sum('input_tokens'),
             response_tokens=chat_session.sum('response_tokens'),
             is_total=True,
             placeholder=result_placeholder,
