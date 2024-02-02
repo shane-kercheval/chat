@@ -8,7 +8,7 @@ import yaml
 import streamlit as st
 import streamlit.components.v1 as components
 from llm_workflow.base import Session, ExchangeRecord, StreamingEvent, PromptModel
-from llm_workflow.openai import OpenAIChat
+from llm_workflow.openai import OpenAIChat, OpenAIServerChat
 from llm_workflow.hugging_face import HuggingFaceEndpointChat, get_tokenizer, num_tokens
 import source.streamlit_helpers as sh
 
@@ -60,6 +60,11 @@ def get_model(model_name: str, system_message: str) -> PromptModel:
         model = HuggingFaceEndpointChat(
             endpoint_url=os.getenv(sh.MODEL_NAME_LOOKUP[model_name]),
             token_calculator=cal_num_tokens,
+            system_message=system_message,
+        )
+    elif model_name == 'LM Studio Server':
+        model = OpenAIServerChat(
+            base_url='http://host.docker.internal:1234/v1',
             system_message=system_message,
         )
     else:

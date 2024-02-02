@@ -8,3 +8,5 @@ services:
     ports:
       - "8501:8501"
     command: streamlit run source/app.py
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # e.g. 'http://host.docker.internal:1234/v1' in the container rather than 'http://localhost:1234/v1'

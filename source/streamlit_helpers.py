@@ -29,6 +29,7 @@ StreamlitWidget = TypeVar('StreamlitWidget')
 MODEL_NAME_LOOKUP = {
     'GPT 3.5 - 16K': 'gpt-3.5-turbo-0125',
     'GPT 4.0 - 128K': 'gpt-4-0125-preview',
+    'LM Studio Server': 'lm-studio',
 }
 
 if os.getenv('HUGGING_FACE_API_KEY'):
