@@ -27,10 +27,8 @@ from llm_workflow.prompt_templates import DocSearchTemplate
 StreamlitWidget = TypeVar('StreamlitWidget')
 
 MODEL_NAME_LOOKUP = {
-    'GPT 3.5 - 4K': 'gpt-3.5-turbo',
-    'GPT 3.5 - 16K': 'gpt-3.5-turbo-16k',
-    'GPT 4.0 - 8K': 'gpt-4',
-    'GPT 4.0 - 32K': 'gpt-4-32k',
+    'GPT 3.5 - 16K': 'gpt-3.5-turbo-0125',
+    'GPT 4.0 - 128K': 'gpt-4-0125-preview',
 }
 
 if os.getenv('HUGGING_FACE_API_KEY'):
