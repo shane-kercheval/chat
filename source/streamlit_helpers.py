@@ -287,8 +287,8 @@ def build_workflow(
     """
     if temperature == 0:
         temperature = 0.001
-    chat_model.temperature = temperature
-    chat_model.max_tokens = max_tokens
+    chat_model.parameters['temperature'] = temperature
+    chat_model.parameters['max_tokens'] = max_tokens
     chat_model.streaming_callback = streaming_callback
     doc_prompt_template = None
 
