@@ -15,6 +15,8 @@ import source.streamlit_helpers as sh
 
 PROMPT_TEMPLATE_DIR = '/code/source/prompt_templates/'
 DEFAULT_SYSTEM_MESSAGE = 'You are a helpful assistant. Be as accurate as possible.'
+DEFAULT_TEMPERATURE = 0.0
+DEFAULT_MAX_TOKENS = 4096
 
 st.set_page_config(
     page_title="ChatGPT",
@@ -98,6 +100,10 @@ def initialize() -> None:
         st.session_state.user_input = ''
     if 'system_message' not in st.session_state:
         st.session_state.system_message = DEFAULT_SYSTEM_MESSAGE
+    if 'temperature' not in st.session_state:
+        st.session_state.temperature = DEFAULT_TEMPERATURE
+    if 'max_tokens' not in st.session_state:
+        st.session_state.max_tokens = DEFAULT_MAX_TOKENS
 
 
 def main() -> None:
@@ -106,7 +112,6 @@ def main() -> None:
 
     with st.sidebar:
         st.markdown('# Options')
-        # model_name = st.selectbox(label="Model", options=list(sh.MODEL_NAME_LOOKUP.keys()))
         model_name = st.selectbox(
             label="Model",
             options=sh.MODEL_NAMES,
@@ -124,18 +129,24 @@ def main() -> None:
         with st.expander("Additional Options"):
             temperature = st.slider(
                 label="Temperature",
-                min_value=0.0, max_value=2.0, value=0.0, step=0.1,
+                min_value=0.0, max_value=2.0, step=0.1,
+                value=st.session_state.temperature,
                 help="What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.",  # noqa
             )
+            if temperature != st.session_state.temperature:
+                st.session_state.temperature = temperature
             max_tokens = st.slider(
                 label="Max Tokens",
-                min_value=100, max_value=100_000, value=2000, step=100,
+                min_value=100, max_value=100_000, step=100,
+                value=st.session_state.max_tokens,
                 help="The maximum number of tokens to generate in the completion.",
             )
+            if max_tokens != st.session_state.max_tokens:
+                st.session_state.max_tokens = max_tokens
             system_message = st.text_area(
                 "System Message",
                 key='system_message',
-                value=DEFAULT_SYSTEM_MESSAGE,  # noqa
+                value=st.session_state.system_message,
                 # placeholder="You are a helpful assistant. Be concise but as helpful and accurate as possible.",  # noqa
                 height=100,
             )
