@@ -23,14 +23,16 @@ from llm_workflow.utilities import (
 from llm_workflow.indexes import ChromaDocumentIndex
 from llm_workflow.prompt_templates import DocSearchTemplate
 
-
 StreamlitWidget = TypeVar('StreamlitWidget')
 
-MODEL_NAME_LOOKUP = {
-    'GPT 3.5 - 16K': 'gpt-3.5-turbo-0125',
-    'GPT 4.0 - 128K': 'gpt-4-0125-preview',
-    'LM Studio Server': 'lm-studio',
-}
+MODEL_NAME_LOOKUP = {}
+
+if os.getenv('SERVER_URL'):
+    MODEL_NAME_LOOKUP['LLM Server'] = 'llm-server'
+
+MODEL_NAME_LOOKUP['GPT 3.5 - 16K'] = 'gpt-3.5-turbo-0125'
+MODEL_NAME_LOOKUP['GPT 4.0 - 128K'] = 'gpt-4-0125-preview'
+MODEL_NAMES = list(MODEL_NAME_LOOKUP.keys())
 
 if os.getenv('HUGGING_FACE_API_KEY'):
     if os.getenv('HUGGING_FACE_ENDPOINT_LLAMA2_7B'):
@@ -50,6 +52,7 @@ def apply_css() -> None:
     section.main .block-container {
         padding-top: 30px;
         padding-bottom: 20px;
+        margin-top: 20px;
     }
     </style>
     """

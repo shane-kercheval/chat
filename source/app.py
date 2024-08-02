@@ -14,14 +14,13 @@ import source.streamlit_helpers as sh
 
 
 PROMPT_TEMPLATE_DIR = '/code/source/prompt_templates/'
-DEFAULT_SYSTEM_MESSAGE = 'You are a helpful assistant. Be concise but as helpful and accurate as possible.'  # noqa
+DEFAULT_SYSTEM_MESSAGE = 'You are a helpful assistant. Be as accurate as possible.'
 
 st.set_page_config(
     page_title="ChatGPT",
     page_icon="🤖",
     layout='wide',
 )
-
 
 @st.cache_data
 def load_prompt_templates() -> dict:
@@ -62,9 +61,12 @@ def get_model(model_name: str, system_message: str) -> PromptModel:
             token_calculator=cal_num_tokens,
             system_message=system_message,
         )
-    elif model_name == 'LM Studio Server':
+    elif model_name == 'LLM Server':
+        server_url = os.getenv('SERVER_URL')
+        if not server_url:
+            raise ValueError('SERVER_URL environment variable not set.')
         model = OpenAIServerChat(
-            base_url='http://host.docker.internal:1234/v1',
+            endpoint_url=server_url,
             system_message=system_message,
         )
     else:
@@ -104,7 +106,13 @@ def main() -> None:
 
     with st.sidebar:
         st.markdown('# Options')
-        model_name = st.selectbox(label="Model", options=list(sh.MODEL_NAME_LOOKUP.keys()))
+        # model_name = st.selectbox(label="Model", options=list(sh.MODEL_NAME_LOOKUP.keys()))
+        model_name = st.selectbox(
+            label="Model",
+            options=sh.MODEL_NAMES,
+            index=sh.MODEL_NAMES.index(st.session_state.model_name) if 'model_name' in st.session_state else 0,  # noqa
+            # key='model_selector',
+        )
         if 'model_name' not in st.session_state or st.session_state.model_name != model_name:
             # if the model name changed, then we need to create a new session and model
             st.session_state.chat_session = _create_new_session(

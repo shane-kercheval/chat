@@ -18,6 +18,9 @@ Features:
 ```
 OPENAI_API_KEY=<required>
 STACK_OVERFLOW_KEY=<optional>
+# use server_url for running lm-studio or similar server compatible with OpenAI's api
+SERVER_URL='http://host.docker.internal:1234/v1'
+
 ```
 
 - run the following command in the terminal: `make docker_run`
