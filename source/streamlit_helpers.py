@@ -30,8 +30,8 @@ MODEL_NAME_LOOKUP = {}
 if os.getenv('SERVER_URL'):
     MODEL_NAME_LOOKUP['LLM Server'] = 'llm-server'
 
-MODEL_NAME_LOOKUP['GPT 3.5 - 16K'] = 'gpt-3.5-turbo-0125'
-MODEL_NAME_LOOKUP['GPT 4.0 - 128K'] = 'gpt-4-0125-preview'
+MODEL_NAME_LOOKUP['GPT 4o-mini'] = 'gpt-4o-mini'
+MODEL_NAME_LOOKUP['GPT 4o'] = 'gpt-4o'
 MODEL_NAMES = list(MODEL_NAME_LOOKUP.keys())
 
 if os.getenv('HUGGING_FACE_API_KEY'):
